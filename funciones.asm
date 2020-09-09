@@ -227,7 +227,7 @@ Rescatar_Argumentos:       ; No estoy cumpliendo con la convención de registros
 
 ;--------------------------------------------------------------------
 
-Pintar_Triangulo:
+Pintar_Triangulo_Wireframe:
 
 
 	push rbp
@@ -311,6 +311,91 @@ Pintar_Triangulo:
 
 ;--------------------------------------------------------------------
 
+Pintar_Triangulo:
+
+	%define hPen_anterior rbp - 56		; 8 bytes
+	%define hPen_triangulo rbp - 48		; 8 bytes
+	%define puntos rbp - 40			; 24 bytes
+	%define hBrush_anterior rbp - 16 	; 8 bytes	
+	%define hBrush_color_triangulo rbp - 8  ; 8 bytes
+
+	push rbp
+	mov rbp, rsp
+	sub rsp, SHADOWSPACE + 64
+
+	push r15
+
+
+
+
+	mov r15, rdx
+	mov rbx, rcx
+
+
+	xor rcx, rcx  
+	mov rcx, 0  ; estilo PS_SOLID, es decir, linea común
+	mov rdx, 0  ; ancho, 0 es un pixel solo
+	mov r8d, [r15+TRIANGULO+color]
+	call CreatePen
+	mov [hPen_triangulo], rax
+	mov rcx, rbx
+	mov rdx, rax
+	call SelectObject
+	mov [hPen_anterior] ,rax  ; la función devuelve el brush reemplazado (IQ 2000 de parte de Bill Gates)
+	
+
+	
+
+	xor rcx,rcx
+	mov ecx, [r15+TRIANGULO+color]
+	call CreateSolidBrush
+	mov [hBrush_color_triangulo], rax
+ 
+	mov rcx, rbx
+	mov rdx, rax
+	call SelectObject
+	mov [hBrush_anterior] ,rax 
+	
+
+	mov eax, [r15+TRIANGULO+vertice1+x]
+	mov [puntos+PUNTOS+x_1], eax
+	mov eax, [r15+TRIANGULO+vertice1+y]
+	mov [puntos+PUNTOS+y_1], eax
+	mov eax, [r15+TRIANGULO+vertice2+x]
+	mov [puntos+PUNTOS+x_2], eax
+	mov eax, [r15+TRIANGULO+vertice2+y]
+	mov [puntos+PUNTOS+y_2], eax
+	mov eax, [r15+TRIANGULO+vertice3+x]
+	mov [puntos+PUNTOS+x_3], eax
+	mov eax, [r15+TRIANGULO+vertice3+y]
+	mov [puntos+PUNTOS+y_3], eax
+	
+	mov rcx, rbx
+	lea rdx, [puntos]
+	mov r8, 3
+	call Polygon
+	
+	mov rcx, rbx
+	mov rdx, [hBrush_anterior]
+	call SelectObject
+	mov rcx, [hBrush_color_triangulo]
+	call DeleteObject
+
+	mov rcx, rbx
+	mov rdx, [hPen_anterior]
+	call SelectObject
+	mov rcx, [hPen_triangulo]
+	call DeleteObject
+
+	
+	pop r15
+
+	mov rsp, rbp	
+	pop rbp
+
+	ret
+
+;--------------------------------------------------------------------
 
 Imprimir_RAX: 
 
@@ -594,7 +679,16 @@ Cargar_Datos_3D:
 	add r14, 12  ; Me posiciono al final del vértice 			
 	mov edx, 0x3f800000 ; 1.0
 	mov [r14], edx   		; Agrego el 1.0 del "w" 
-	add r14, 4+COLOR_size		; Sumo 4 para pasar al final de w (inicio del color). OJO! Acá sí agrego el colorsize. 
+	
+;Chanchada begins ----
+
+	add r14, 4 ; muevo dos bytes extra para ir al canal de color que quiero
+	mov edx, 0xB0DAF0
+	mov [r14], edx
+	add r14, 4 ; muevo los dos bytes restantes	
+
+;end of chanchada ----
+;previo a la chanchada:	add r14, 4+COLOR_size		; Sumo 4 para pasar al final de w (inicio del color). OJO! Acá sí agrego el colorsize. 
 	;
 	add r13, 12			; Le agrego el offset para que mueva el cursor en la próxima del siguiente vértice
 

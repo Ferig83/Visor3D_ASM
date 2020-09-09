@@ -54,7 +54,7 @@ Pintar:
 	mov rdx, [puntero_triangulo_a_pintar]
 	add rdx, rax
 	mov rcx, [DC_pantalla]
-	call Pintar_Triangulo 	      
+	call Pintar_Triangulo_Wireframe 	      
 	
 	inc r13
 	cmp qword r13, [cantidad_triangulos_a_rasterizar]
@@ -117,8 +117,8 @@ Pintar_WMPAINT:
 	mov rdx, [puntero_triangulo_a_pintar]
 	add rdx, rax
 	mov rcx, [DC_pantalla]
-	call Pintar_Triangulo 	      
-	
+	call Pintar_Triangulo	
+
 	inc r13
 	cmp qword r13, [cantidad_triangulos_a_rasterizar]
 	jb .loop1

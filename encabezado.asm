@@ -109,6 +109,7 @@ extern CreateCompatibleDC
 extern CreateFileA
 extern CreateFileW
 extern CreateFontA
+extern CreatePen
 extern CreateSolidBrush
 extern CreateWindowExA
 extern DefWindowProcA
@@ -145,6 +146,7 @@ extern LoadImageA
 extern LoadBitmapA
 extern MessageBoxA
 extern PeekMessageA
+extern Polygon
 extern PostQuitMessage
 extern QueryPerformanceCounter
 extern QueryPerformanceFrequency
@@ -274,4 +276,17 @@ struc TIMER
 	tiempo_inicial resq 1
 	tiempo_final resq 1
 	tiempo_transcurrido resq 1
+endstruc
+
+;----------------------------
+
+struc PUNTOS
+
+	x_1 resd 1
+	y_1 resd 1
+	x_2 resd 1
+	y_2 resd 1
+	x_3 resd 1
+	y_3 resd 1
+
 endstruc

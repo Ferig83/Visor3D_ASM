@@ -12,7 +12,8 @@
 
 Actualizar:
 
-
+%define factor_conversion		rbp - 92 ; 4 bytes
+%define factor_sombra			rbp - 88 ; 4 bytes
 %define normal_normalizada		rbp - 84 ; 16 bytes  ; quitar al optimizar ese proceso infame
 %define factor_visibilidad_triangulo   	rbp - 68 ; 4 bytes
 %define vector_triangulo_a_camara  	rbp - 64 ; 16 bytes 
@@ -25,6 +26,12 @@ Actualizar:
 	mov rbp, rsp
 	sub rsp, SHADOWSPACE+256 ; revisar esta cantidad (ojo los parametros)
 
+
+	
+	
+	mov eax, 100
+	mov [factor_conversion], eax
+	xor rax,rax
 
 ;_______Preparamos la matriz_mundo. Como primero se rota y luego se traslada, vamos a tener
 ;	que hacer MATRIZ_TRASLACION*MATRIZ_ROTACION (o tantas rotaciones como haya)
@@ -65,6 +72,7 @@ Actualizar:
 ;_______Ahora preparamos la matriz_camara
 
 
+
 ;TODO:  ; Falta "rellenar" los vectores de la cámara, porque hay que hacer productos vectoriales 
 	; en el caso de que se muevan. En el main están hardcodeados porque no está implementado el
 	; movimiento aún.
@@ -91,6 +99,8 @@ Actualizar:
 
 
 ;_______Inicializamos la matriz proyección
+
+
 
 
 ;TODO   ; ATENCION:
@@ -130,6 +140,8 @@ Actualizar:
 	push r14
 	push r15
 
+
+
 	mov r15, [puntero_objeto3d_original]
 	mov r13, [puntero_objeto3d_mundo]
 	xor r14, r14
@@ -161,20 +173,20 @@ Actualizar:
 
 	; Copio el código de color de paso
 
-;	lea rdx, [r15+TRIANGULO+color+rojo]
-;	mov al, [rdx]
-;	mov r8, triangulo_a_analizar+TRIANGULO+color+rojo
-;	mov [r8], al
+	lea rdx, [r15+TRIANGULO+color+rojo]
+	mov al, [rdx]
+	mov r8, triangulo_a_analizar+TRIANGULO+color+rojo
+	mov [r8], al
 
-;	lea rdx, [r15+TRIANGULO+color+verde]
-;	mov al, [rdx]
-;	mov r8, triangulo_a_analizar+TRIANGULO+color+verde
-;	mov [r8], al
+	lea rdx, [r15+TRIANGULO+color+verde]
+	mov al, [rdx]
+	mov r8, triangulo_a_analizar+TRIANGULO+color+verde
+	mov [r8], al
 
-;	lea rdx, [r15+TRIANGULO+color+azul]
-;	mov al, [rdx]
-;	mov r8, triangulo_a_analizar+TRIANGULO+color+azul
-;	mov [r8], al
+	lea rdx, [r15+TRIANGULO+color+azul]
+	mov al, [rdx]
+	mov r8, triangulo_a_analizar+TRIANGULO+color+azul
+	mov [r8], al
 
 	
 	; Ahora calculo los vectores para sacar la normal. Para ello resto
@@ -358,23 +370,88 @@ Actualizar:
 	mov rdx, triangulo_a_analizar+TRIANGULO+vertice3
 	lea r8, [r13+TRIANGULO+vertice3]
 	call Multiplicar_Matriz_Vector
+
+
+
+
 	
 ;_______Muevo el color, y lo hago así medio manual porque son 3 bytes	
 
-;	mov al, [triangulo_a_analizar+TRIANGULO+color+rojo]
-;	mov r8, r13
-;	add r8, TRIANGULO+color+rojo
-;	mov [r8], al
+	mov al, [triangulo_a_analizar+TRIANGULO+color+rojo]
+	mov r8, r13
+	add r8, TRIANGULO+color+rojo
+	mov [r8], al
 
-;	mov al, [triangulo_a_analizar+TRIANGULO+color+verde]
-;	mov r8,r13
-;	add r8, TRIANGULO+color+verde
-;	mov [r8], al
+	mov al, [triangulo_a_analizar+TRIANGULO+color+verde]
+	mov r8,r13
+	add r8, TRIANGULO+color+verde
+	mov [r8], al
 
-;	mov al, [triangulo_a_analizar+TRIANGULO+color+azul]
-;	mov r8,r13
-;	add r8, TRIANGULO+color+azul
-;	mov [r8], al
+	mov al, [triangulo_a_analizar+TRIANGULO+color+azul]
+	mov r8,r13
+	add r8, TRIANGULO+color+azul
+	mov [r8], al
+
+;_______Una vez que tengo cargado el color hago varío el mismo según sombra
+
+	;Debería normalizarlo pero banquemos, ya lo tengo normalizado en el main.asm. Probemos primero que hay
+		
+	fld dword [normal_normalizada+VECTOR4+vector_1]
+	fld dword [vector_luz+VECTOR4+vector_1]
+	fmulp
+	fld dword [normal_normalizada+VECTOR4+vector_2]
+	fld dword [vector_luz+VECTOR4+vector_2]
+	fmulp
+	fld dword [normal_normalizada+VECTOR4+vector_3]
+	fld dword [vector_luz+VECTOR4+vector_3]
+	fmulp
+	faddp
+	faddp
+	fild dword [factor_conversion]
+	fmulp
+	fistp dword [factor_sombra]
+
+
+	pushf
+	push rbx
+
+	xor rax, rax
+	mov al, [r13+TRIANGULO+color+rojo]
+	xor rdx, rdx
+	xor rbx, rbx
+	mov ebx, [factor_sombra]
+	mul rbx
+	xor rdx, rdx
+	mov rbx, 100
+	div rbx
+	mov [r13+TRIANGULO+color+rojo], al
+	
+	xor rax, rax
+	mov al, [r13+TRIANGULO+color+verde]
+	xor rdx, rdx
+	xor rbx, rbx
+	mov ebx, [factor_sombra]
+	mul rbx
+	xor rdx, rdx
+	mov rbx, 100
+	div rbx
+	mov [r13+TRIANGULO+color+verde], al
+	
+	xor rax, rax
+	mov al, [r13+TRIANGULO+color+azul]
+	xor rdx, rdx
+	xor rbx, rbx
+	mov ebx, [factor_sombra]
+	mul rbx
+	xor rdx, rdx
+	mov rbx, 100
+	div rbx
+	mov [r13+TRIANGULO+color+azul], al
+
+	pop rbx
+		
+
+	
 
 	
 ;_______Ahora se hacen las modificaciones del Viewport y se suelen hacer sin matriz, y consisten en:
@@ -384,7 +461,18 @@ Actualizar:
 	; 2) Luego sumarle uno a cada X e Y (no Z)
 	; 3) Escalar a pantalla 
 
-	mov rax, 0
+
+;;;;ALTO BUG PARCHEADO ;;;; 
+
+	xor r10, r10 ; mov rax, 0   ; este xor me alteró un flag. Algo de abajo está laburando con flags de arriba
+					; LO CUAL ESTA MAL. tengo que ver qué. El parcheo es salvar los flags
+ 
+
+	popf
+
+; hipótesis: el xor me movió un flag, que se alteró arriba y afecta abajo. Si guardo los flags?
+; CORRECTO! son los flags... madre mía... pero...
+
 
 .loop_viewport:
 
@@ -408,6 +496,9 @@ Actualizar:
 	fmulp
 	fistp dword [r13+VECTOR4+vector_1]
 
+
+
+
 	fld dword [r13+VECTOR4+vector_2]
 	fld dword [r13+VECTOR4+vector_4]
 	fcom st2
@@ -420,10 +511,10 @@ Actualizar:
 	fmulp
 	fistp dword [r13+VECTOR4+vector_2]
 	fstp st0
-	
-	inc rax
+
+	inc r10
 	add r13, VECTOR4_size  
-	cmp rax, 3
+	cmp r10, 3
 	jne .loop_viewport
 
 	add r13, TRIANGULO_size - VECTOR4_size*3
@@ -431,7 +522,8 @@ Actualizar:
 
 
 .continuar:
-
+	
+	
 	add r15, TRIANGULO_size
 	inc r12 
 

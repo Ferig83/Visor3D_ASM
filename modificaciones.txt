@@ -1,0 +1,58 @@
+COLOR
+-----
+
+Acá vamos a tomar una decisión. Lo que me parece lógico es poder cargar el color desde archivo, aunque sea desde uno separado
+o modificar el conversor y armar un .3d con toda la info junta. Esto sería un salto muy copado.
+
+Lo que es cierto, es que no sé qué alcance va a tener este proyecto. Especialmente porque hay info sobre texturas que quizás
+valga la pena implementar. Sin embargo pensar muy a futuro va a ser que no tenga la más puta idea de qué hacer, y no es que
+no pueda modificar el código (de hecho, modificarlo es lo que estoy planteando ahora).
+
+Por lo tanto, la decisión va a ser ir a algo que no sea tan minuicioso:  olvidarnos del Depth Buffering, y agrandar nuestros
+triangulos a 51 bytes cada uno de la misma manera que lo hice cuando agregué la cuarta componente de los vértices. 
+
+Entonces la estructura será
+
+struc TRIANGULO 
+	vertice1 resb VERTICE_size
+	vertice2 resb VERTICE_size
+	vertice3 resb VERTICE_size
+	color resb COLOR_size
+endstruc
+
+No agregar el alpha porque me parece que los brushes no lo tienen
+
+
+
+Así que vamos a hacer nuestro laburo en los siguientes pasos:
+
+1) Chequear todos y cada uno de los saltos hardcodeados que seguramente son números onda 48 o 16. Usar TRIANGULO_size, COLOR_size y
+VERTICE_size. Revisar que todas las iteraciones vayan bien (se puede usar un cmov para sumar punteros).
+
+2) Probar la función de poly con relleno del GDI
+
+3) Hacer una función que pinte todos los triángulos de un color específico (ej: azul). Debería ver lo de los brushes que
+me parece que van a dar cierto dolor de cabeza.
+
+4) Cambiar el nombre objeto3d_mundo por objeto3d_rasterizado pero SOLO cuando todo funcione ok.
+
+Observaciones:
+
+- Ojo las pilas! revisarlas
+
+
+Archivos verificados:
+
+- encabezado.asm
+- pintar.asm
+- winproc.asm
+- main.asm        ; importante acá el tamaño de los triángulos de prueba, de análisis, etc.
+- macros.asm 	  ; ni bola
+- matrices.asm
+- actualizar.asm  ; acá pueden haber bugs con lo de mover el color... ya ni sé lo que hago. Recemos.
+
+falta funciones.asm ; edité. Se cuelga. lol. Me juego que el problema está o en funciones o en actualizar, con los colores.
+
+capé lo de modificar el color. Me sale algo raro, la de pintar triangulo puede que esté  mal también,ojo
+
+

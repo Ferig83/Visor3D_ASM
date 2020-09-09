@@ -21,6 +21,7 @@ MitadAnchoPantalla dd 0x442ac000   ; 683 en float 32
 MitadAltoPantalla  dd 0x43c00000   ; 384 en float 32
 rectangulo_pantalla dd 0,0,1366,768
 
+Color_Figura_RGA dd 0x0000FF00
 
 BackgroundColour dd 0xFFFFFF      		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
 WindowName 	 db "Virtual Reality", 0                     ; Título de la ventana (nombre de la app)
@@ -55,6 +56,9 @@ vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw
 vector_camara_derecha		dd 0x3f800000,0x00000000,0x00000000,0x3f800000	 ;   xyzw: 1,0,0,1
 vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
 vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+
+;test
+vector_luz2			dd 0x00000000,0x00000000,0x3f800000,0x3f800000	 ;   xyzw: 0,0,-1,1
 
 ;--- BSS --------------------------------------------------------
 
@@ -412,6 +416,8 @@ WinMain:
 	
 ;;;;;todo esto es un bloquecito
 
+	
+
 .esperar:
 
 	lea rcx, [temporizador+tiempo_final]
@@ -453,7 +459,7 @@ WinMain:
 	call InvalidateRect
 	mov rcx, [hWnd]
 	call UpdateWindow
-
+	
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	; ACA SE DIBUJARIA.  Estoy llamando a tirar WM_PAINTs con el UpdateWindows...voy a tener que cambiarlo
