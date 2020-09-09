@@ -4,7 +4,7 @@ En desarrollo. Solo utilizo GDI / WinAPI (lo más bajo nivel que puedo llegar co
 
 ## Estado del proyecto: 
 
-Antes de continuar con el movimiento de cámera y rasterización por orden de profundidad, sería bueno una linda optimización (se puede y se debe), y limpieza de código (mucho parche). De momento dejenme disfrutarlo, por el amor de Cristo.
+Antes de continuar con el movimiento de cámara y rasterización por orden de profundidad, sería bueno una linda optimización (se puede y se debe), y limpieza de código (mucho parche). De momento dejenme disfrutarlo, por el amor de Cristo.
 
 ### Instrucciones de uso: Abrir la terminal (command prompt) y ejecutar el main.exe poniendo de argumento el nombre del objeto ".3d".  
 
