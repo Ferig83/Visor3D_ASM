@@ -682,10 +682,10 @@ Cargar_Datos_3D:
 	
 ;Chanchada begins ----
 
-	add r14, 4 ; muevo dos bytes extra para ir al canal de color que quiero
+	add r14, 4 ; muevo dos bytes extra para ir al offset del color
 	mov edx, 0xB0DAF0
 	mov [r14], edx
-	add r14, 4 ; muevo los dos bytes restantes	
+	add r14, COLOR_size+12 ; muevo los dos bytes restantes + el padding para que quede alineado a 16 (requerido para SSE 4.1)	
 
 ;end of chanchada ----
 ;previo a la chanchada:	add r14, 4+COLOR_size		; Sumo 4 para pasar al final de w (inicio del color). OJO! Acá sí agrego el colorsize. 

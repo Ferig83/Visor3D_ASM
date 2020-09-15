@@ -189,6 +189,8 @@ endstruc
 
 ;----------------------------
 
+
+align 16
 struc VERTICE
 	
 	x resd 1    ; Estos cuatro son floats de precisión simple
@@ -201,6 +203,7 @@ endstruc  ; esto pesaría 16 bytes
 
 ;----------------------------
 
+
 struc COLOR
 	
 	alfa    resb 1
@@ -212,14 +215,16 @@ endstruc  ; esto pesaría 4 bytes
 
 ;----------------------------
 
+
 struc TRIANGULO
 	
 	vertice1 resb VERTICE_size
 	vertice2 resb VERTICE_size
 	vertice3 resb VERTICE_size
 	color resb COLOR_size
+	padding resb 12  	;esto es para que estén alineados a 16 bytes
 
-endstruc  ; esto pesaría 52 bytes
+endstruc  ; esto pesaría 64 bytes, y siempre debe ocupar un múltiplo de 16
 
 
 ;----------------------------
@@ -236,28 +241,32 @@ endstruc  ; pesa 20 bytes
 
 ;----------------------------
 
-struc MATRIZ
 
+struc MATRIZ
+	
 	matriz_11 resd 1
-	matriz_21 resd 1
-	matriz_31 resd 1
-	matriz_41 resd 1
 	matriz_12 resd 1
-	matriz_22 resd 1
-	matriz_32 resd 1
-	matriz_42 resd 1
 	matriz_13 resd 1
-	matriz_23 resd 1
-	matriz_33 resd 1
-	matriz_43 resd 1
 	matriz_14 resd 1
+	matriz_21 resd 1
+	matriz_22 resd 1
+	matriz_23 resd 1
 	matriz_24 resd 1
+	matriz_31 resd 1
+	matriz_32 resd 1
+	matriz_33 resd 1
 	matriz_34 resd 1
+	matriz_41 resd 1
+	matriz_42 resd 1
+	matriz_43 resd 1
 	matriz_44 resd 1
 
-endstruc  ; esto pesa 64
+	
+
+endstruc  ; esto pesa 64, y está como row-major
 
 ;----------------------------
+
 
 struc VECTOR4
 

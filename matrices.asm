@@ -615,6 +615,11 @@ Inicializar_Matriz_Vista:
 Multiplicar_Matriz_Matriz:
 
 
+
+;;; OPTIMIZABLE: usar SIMD, pero una vez aprenda a alinear los datos ;;;
+
+
+
 	; rdx = rdx * rcx     CUIDADO QUE LA MATRIZ EN RDX SE SOBREESCRIBE.
 	; es para transformaciones
 
@@ -1003,100 +1008,52 @@ Multiplicar_Matriz_Matriz:
 	pop rbp
 	ret
 
-	
 
 Multiplicar_Matriz_Vector:
-
-
 
 	; vector destino (r8) = matriz(rcx)*vector origen (rdx)
 	; r8 = rcx * rdx  
 
 
-	;__x__
+;;;OPTIMIZABLE;;;
+
+	; Acá hago uso de la tecnología SIMD (we!)
+	; Los datos necesitan estar alineados a 16 bytes (o sea, que la dirección de memoria
+	; sea divisible por 16). Si no podés usar movdqu en vez de movaps, pero es más lento.
+
+
+	; Para DPPS:  (producto escalar en paralelo)
+	;
+	; El tercer operando en dpps especifica dos nibbles:
+	; el primer nibble (1) dice en qué parte del registro va el resultado. 0001b sería en la primera parte
+	; el segundo nibble (F) indica qué se multiplica, 0001b sería solo la primera parte, 1111b sería todo.
+
+
+	; Leí que el dpps medio que no ofrece mayor performance con respecto a otros métodos, pero bueh,
+	; lo dejamos así. La versión sin SIMD está en el 3D_3. Si es más rápida, se usará esa.
 	
-	fld dword [rcx+(MATRIZ+matriz_11)]
-	fld dword [rdx+(VECTOR4+vector_1)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_12)]
-	fld dword [rdx+(VECTOR4+vector_2)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_13)]
-	fld dword [rdx+(VECTOR4+vector_3)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_14)]
-	fld dword [rdx+(VECTOR4+vector_4)]
-	fmulp
 
-	faddp
-	faddp
-	faddp
-	fstp dword [r8+VECTOR4+vector_1]
+	movaps xmm0, [rcx+MATRIZ+matriz_11]   ; Con estas dos instrucciones cargo en los registros la fila de la matriz
+	movaps xmm1, [rdx]                    ; (o los vectores)
+	dpps xmm0,xmm1,11110001b 	      ; Hago el producto escalar y guardo el resultado en la parte más baja del xmm0
+	movss [r8+VECTOR4+vector_1], xmm0     ; Guardo el resultado (que está en la parte baja) en el vector destino. 
 
-	;__y__
-	
-	fld dword [rcx+(MATRIZ+matriz_21)]
-	fld dword [rdx+(VECTOR4+vector_1)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_22)]
-	fld dword [rdx+(VECTOR4+vector_2)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_23)]
-	fld dword [rdx+(VECTOR4+vector_3)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_24)]
-	fld dword [rdx+(VECTOR4+vector_4)]
-	fmulp
+	movaps xmm0, [rcx+MATRIZ+matriz_21]
+	movaps xmm1, [rdx]
+	dpps xmm0,xmm1,11110001b
+	movss [r8+VECTOR4+vector_2], xmm0	
 
-	faddp
-	faddp
-	faddp
-	fstp dword [r8+VECTOR4+vector_2]
+	movaps xmm0, [rcx+MATRIZ+matriz_31]
+	movaps xmm1, [rdx]
+	dpps xmm0,xmm1, 11110001b   
+	movss [r8+VECTOR4+vector_3], xmm0
 
-	;__z__
-	
-	fld dword [rcx+(MATRIZ+matriz_31)]
-	fld dword [rdx+(VECTOR4+vector_1)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_32)]
-	fld dword [rdx+(VECTOR4+vector_2)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_33)]
-	fld dword [rdx+(VECTOR4+vector_3)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_34)]
-	fld dword [rdx+(VECTOR4+vector_4)]
-	fmulp
+	movaps xmm0, [rcx+MATRIZ+matriz_41]
+	movaps xmm1, [rdx]
+	dpps xmm0,xmm1, 11110001b  
+	movss [r8+VECTOR4+vector_4], xmm0
 
-	faddp
-	faddp
-	faddp
-	fstp dword [r8+VECTOR4+vector_3]
-
-	;__w__
-	
-	fld dword [rcx+(MATRIZ+matriz_41)]
-	fld dword [rdx+(VECTOR4+vector_1)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_42)]
-	fld dword [rdx+(VECTOR4+vector_2)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_43)]
-	fld dword [rdx+(VECTOR4+vector_3)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_44)]
-	fld dword [rdx+(VECTOR4+vector_4)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [r8+VECTOR4+vector_4]
-
+	emms ; vuelvo al estado FPU
 
 	ret
 
-
-
-
-	

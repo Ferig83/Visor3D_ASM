@@ -13,7 +13,8 @@ global Start
 
 ;--- DATA -----------------------------------------------------------
 
-section .data        
+section .data progbits alloc noexec write align=16       
+
 
 AnchoPantalla	   dd 1366
 AltoPantalla	   dd 768
@@ -42,6 +43,7 @@ titulo_error db 'Error',0
 
 
 ; -- ANGULOS DE ROTACION --
+
 tita_rotacion_x dd 0.0  ; roto un misero radian
 tita_rotacion_y dd 0.0
 tita_rotacion_z dd 0.0
@@ -51,26 +53,25 @@ delta_rotacion_z dd 0.1
 
 ; -- CAMARA Y LUCES --
 
-vector_camara_arriba 		dd 0x00000000,0x3f800000,0x00000000,0x3f800000   ;   xyzw: 0,1,0,1
-vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw: 0,0,1,1
-vector_camara_derecha		dd 0x3f800000,0x00000000,0x00000000,0x3f800000	 ;   xyzw: 1,0,0,1
-vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
-vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+align 16
+ vector_camara_arriba 		dd 0x00000000,0x3f800000,0x00000000,0x3f800000   ;   xyzw: 0,1,0,1
+ vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw: 0,0,1,1
+ vector_camara_derecha		dd 0x3f800000,0x00000000,0x00000000,0x3f800000	 ;   xyzw: 1,0,0,1
+ vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
+ vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
 
-;test
-vector_luz2			dd 0x00000000,0x00000000,0x3f800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+ ;test
+ vector_luz2			dd 0x00000000,0x00000000,0x3f800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+
+
 
 ;--- BSS --------------------------------------------------------
 
-section .bss 
+section .bss nobits alloc noexec write align=16
 
 
 ; cadena_auxiliar resb 32;20  ;estas dos son para las macros de imprimir EAX
 ; cadena_impresion resb 32; 20
-
-
- alignb 8                  ;esto es para forzar que se aliñe todo de 8 en 8 bytes y se llene
-			   ;con espacios vacios lo que sobra. Teoricamente mejora el rendimiento
 
 
  prueba resq 1  ; para meter los valores de los test que haga
@@ -90,7 +91,14 @@ section .bss
  ; Podría pasársela de argumento al winproc pero... me ayuda en algo? es un proceso más 
  ; que ni sé si vale la pena.
 
+
+ ancho_pantalla_real resq 1
+
+
+alignb 16 
  puntero_objeto3d_original	resq 1
+
+alignb 16
  puntero_objeto3d_mundo		resq 1  ; cambiar nombre a "puntero_objeto3d_a_rasterizar"
 
  cantidad_triangulos_objeto		resq 1
@@ -100,25 +108,26 @@ section .bss
  handle_archivo_objeto3d		resq 1	
  tamanio_archivo_objeto3d 		resq 1 
 
+alignb 16
  matriz_mundo 		resd 16
  matriz_camara		resd 16
  matriz_vista		resd 16
  matriz_proyeccion	resd 16
  
  ;auxiliares
+
  matriz_A   		resd 16   ; esta creo que no la estoy usando
  matriz_B     		resd 16
- 
+ 	 
  triangulo_a_analizar 	resb TRIANGULO_size ; 52 bytes  
  
 
- ancho_pantalla_real resq 1
 
   
 ;--- TEXT -----------------------------------------------------------
 
 
-section .text
+section .text progbits alloc exec nowrite align=16
 
 Start:
 
