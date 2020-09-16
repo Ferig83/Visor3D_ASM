@@ -610,403 +610,120 @@ Inicializar_Matriz_Vista:
 	ret
 
 
+;--------------------------------------------------------------------
 
 
 Multiplicar_Matriz_Matriz:
 
 
 
-;;; OPTIMIZABLE: usar SIMD, pero una vez aprenda a alinear los datos ;;;
-
-
-
-	; rdx = rdx * rcx     CUIDADO QUE LA MATRIZ EN RDX SE SOBREESCRIBE.
+	; rcx = rcx * rdx     CUIDADO QUE LA MATRIZ EN RCX SE SOBREESCRIBE.
 	; es para transformaciones
 
 
-	%define matriz_resultado rbp - 64 ; 64 bytes
+;_______Este algoritmo no es el típico para multiplicar matrices.
+;	Va a requerir una explicación laaaarga larga, pero es lo más! Super rápido.
+;	La anterior que hice con FPU está en los backups, en 3D_3. Si es más rápida esa, 
+;	usar esa (me extrañaría).
+
+
+	movaps xmm0, [rdx+MATRIZ+matriz_11]	 ; primera fila de B
+	movss xmm1, [rcx+MATRIZ+matriz_11]	 ; Valor a11 de A 
+	shufps xmm1, xmm1, 0x00    		 ; esto llena xmm1 con el valor de arriba
+	mulps xmm1,xmm0		   		 ; Multiplico y queda lista para la suma.
+
+	movss xmm2, [rcx+MATRIZ+matriz_21]	 ; Valor de a21 de A y se repite hasta llenar todas de xmm1 a xmm4 
+	shufps xmm2, xmm2, 0x00    	
+	mulps xmm2,xmm0		   
+ 
+	movss xmm3, [rcx+MATRIZ+matriz_31]
+	shufps xmm3, xmm3, 0x00    
+	mulps xmm3,xmm0		   
+
+	movss xmm4, [rcx+MATRIZ+matriz_31] 
+	shufps xmm4, xmm4, 0x00    
+	mulps xmm4,xmm4		   
+
+;_______Ahora hago lo mismo con la segunda fila de B hasta llegar a la cuarta 
+;	y voy sumando cada vez.
+
+	movaps xmm0, [rdx+MATRIZ+matriz_21]
+	movss xmm5, [rcx+MATRIZ+matriz_12]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm1,xmm5
+
+	movss xmm5, [rcx+MATRIZ+matriz_22]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm2,xmm5
+
+	movss xmm5, [rcx+MATRIZ+matriz_32]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm3,xmm5
+
+	movss xmm5, [rcx+MATRIZ+matriz_42]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm4,xmm5
 	
-	push rbp
-	mov rbp, rsp
-	sub rsp, SHADOWSPACE + 64
+	movaps xmm0, [rdx+MATRIZ+matriz_31]
+	movss xmm5, [rcx+MATRIZ+matriz_13]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm1,xmm5
 
+	movss xmm5, [rcx+MATRIZ+matriz_23]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm2,xmm5
 
-	;__a11__
+	movss xmm5, [rcx+MATRIZ+matriz_33]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm3,xmm5
+
+	movss xmm5, [rcx+MATRIZ+matriz_43]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm4,xmm5
 	
-	fld dword [rcx+(MATRIZ+matriz_11)]
-	fld dword [rdx+(MATRIZ+matriz_11)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_12)]
-	fld dword [rdx+(MATRIZ+matriz_21)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_13)]
-	fld dword [rdx+(MATRIZ+matriz_31)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_14)]
-	fld dword [rdx+(MATRIZ+matriz_41)]
-	fmulp
+	movaps xmm0, [rdx+MATRIZ+matriz_41]
+	movss xmm5, [rcx+MATRIZ+matriz_14]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm1,xmm5
 
-	faddp
-	faddp
-	faddp
+	movss xmm5, [rcx+MATRIZ+matriz_24]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm2,xmm5
 
-	fstp dword [matriz_resultado+(MATRIZ+matriz_11)]
+	movss xmm5, [rcx+MATRIZ+matriz_34]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm3,xmm5
 
-	;__a12__
+	movss xmm5, [rcx+MATRIZ+matriz_44]
+	shufps xmm5, xmm5, 0x00
+	mulps xmm5,xmm0
+	addps xmm4,xmm5
 	
-	fld dword [rcx+(MATRIZ+matriz_11)]
-	fld dword [rdx+(MATRIZ+matriz_12)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_12)]
-	fld dword [rdx+(MATRIZ+matriz_22)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_13)]
-	fld dword [rdx+(MATRIZ+matriz_32)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_14)]
-	fld dword [rdx+(MATRIZ+matriz_42)]
-	fmulp
+;_______Y ahora muevo todo a cada parte
 
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_12)]
+	movaps [rcx+MATRIZ+matriz_11], xmm1
+	movaps [rcx+MATRIZ+matriz_21], xmm2
+	movaps [rcx+MATRIZ+matriz_31], xmm3
+	movaps [rcx+MATRIZ+matriz_41], xmm4
 
-
-	;__a13__
-
-	fld dword [rcx+(MATRIZ+matriz_11)]
-	fld dword [rdx+(MATRIZ+matriz_13)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_12)]
-	fld dword [rdx+(MATRIZ+matriz_23)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_13)]
-	fld dword [rdx+(MATRIZ+matriz_33)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_14)]
-	fld dword [rdx+(MATRIZ+matriz_43)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_13)]
-
-	;__a14__
-
-	fld dword [rcx+(MATRIZ+matriz_11)]
-	fld dword [rdx+(MATRIZ+matriz_14)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_12)]
-	fld dword [rdx+(MATRIZ+matriz_24)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_13)]
-	fld dword [rdx+(MATRIZ+matriz_34)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_14)]
-	fld dword [rdx+(MATRIZ+matriz_44)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_14)]
-
-	;;;;;;;;;;
-
-
-	;__a21__
-	
-	fld dword [rcx+(MATRIZ+matriz_21)]
-	fld dword [rdx+(MATRIZ+matriz_11)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_22)]
-	fld dword [rdx+(MATRIZ+matriz_21)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_23)]
-	fld dword [rdx+(MATRIZ+matriz_31)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_24)]
-	fld dword [rdx+(MATRIZ+matriz_41)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_21)]
-
-	;__a22__
-	
-	fld dword [rcx+(MATRIZ+matriz_21)]
-	fld dword [rdx+(MATRIZ+matriz_12)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_22)]
-	fld dword [rdx+(MATRIZ+matriz_22)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_23)]
-	fld dword [rdx+(MATRIZ+matriz_32)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_24)]
-	fld dword [rdx+(MATRIZ+matriz_42)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_22)]
-
-
-	;__a23__
-
-	fld dword [rcx+(MATRIZ+matriz_21)]
-	fld dword [rdx+(MATRIZ+matriz_13)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_22)]
-	fld dword [rdx+(MATRIZ+matriz_23)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_23)]
-	fld dword [rdx+(MATRIZ+matriz_33)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_24)]
-	fld dword [rdx+(MATRIZ+matriz_43)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_23)]
-
-	;__a24__
-
-	fld dword [rcx+(MATRIZ+matriz_21)]
-	fld dword [rdx+(MATRIZ+matriz_14)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_22)]
-	fld dword [rdx+(MATRIZ+matriz_24)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_23)]
-	fld dword [rdx+(MATRIZ+matriz_34)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_24)]
-	fld dword [rdx+(MATRIZ+matriz_44)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_24)]
-
-
-	;;;;;;;;;;;;;
-
-	;__a31__
-	
-	fld dword [rcx+(MATRIZ+matriz_31)]
-	fld dword [rdx+(MATRIZ+matriz_11)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_32)]
-	fld dword [rdx+(MATRIZ+matriz_21)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_33)]
-	fld dword [rdx+(MATRIZ+matriz_31)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_34)]
-	fld dword [rdx+(MATRIZ+matriz_41)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_31)]
-
-	;__a32__
-	
-	fld dword [rcx+(MATRIZ+matriz_31)]
-	fld dword [rdx+(MATRIZ+matriz_12)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_32)]
-	fld dword [rdx+(MATRIZ+matriz_22)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_33)]
-	fld dword [rdx+(MATRIZ+matriz_32)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_34)]
-	fld dword [rdx+(MATRIZ+matriz_42)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_32)]
-
-
-	;__a33__
-
-	fld dword [rcx+(MATRIZ+matriz_31)]
-	fld dword [rdx+(MATRIZ+matriz_13)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_32)]
-	fld dword [rdx+(MATRIZ+matriz_23)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_33)]
-	fld dword [rdx+(MATRIZ+matriz_33)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_34)]
-	fld dword [rdx+(MATRIZ+matriz_43)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_33)]
-
-	;__a34__
-
-	fld dword [rcx+(MATRIZ+matriz_31)]
-	fld dword [rdx+(MATRIZ+matriz_14)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_32)]
-	fld dword [rdx+(MATRIZ+matriz_24)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_33)]
-	fld dword [rdx+(MATRIZ+matriz_34)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_34)]
-	fld dword [rdx+(MATRIZ+matriz_44)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_34)]
-
-
-	;;;;;;;;;;;;;
-
-	;__a41__
-	
-	fld dword [rcx+(MATRIZ+matriz_41)]
-	fld dword [rdx+(MATRIZ+matriz_11)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_42)]
-	fld dword [rdx+(MATRIZ+matriz_21)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_43)]
-	fld dword [rdx+(MATRIZ+matriz_31)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_44)]
-	fld dword [rdx+(MATRIZ+matriz_41)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_41)]
-
-	;__a42__
-	
-	fld dword [rcx+(MATRIZ+matriz_41)]
-	fld dword [rdx+(MATRIZ+matriz_12)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_42)]
-	fld dword [rdx+(MATRIZ+matriz_22)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_43)]
-	fld dword [rdx+(MATRIZ+matriz_32)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_44)]
-	fld dword [rdx+(MATRIZ+matriz_42)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_42)]
-
-
-	;__a43__
-
-	fld dword [rcx+(MATRIZ+matriz_41)]
-	fld dword [rdx+(MATRIZ+matriz_13)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_42)]
-	fld dword [rdx+(MATRIZ+matriz_23)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_43)]
-	fld dword [rdx+(MATRIZ+matriz_33)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_44)]
-	fld dword [rdx+(MATRIZ+matriz_43)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_43)]
-
-	;__a44__
-
-	fld dword [rcx+(MATRIZ+matriz_41)]
-	fld dword [rdx+(MATRIZ+matriz_14)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_42)]
-	fld dword [rdx+(MATRIZ+matriz_24)]
-	fmulp 
-	fld dword [rcx+(MATRIZ+matriz_43)]
-	fld dword [rdx+(MATRIZ+matriz_34)]
-	fmulp
-	fld dword [rcx+(MATRIZ+matriz_44)]
-	fld dword [rdx+(MATRIZ+matriz_44)]
-	fmulp
-
-	faddp
-	faddp
-	faddp
-	fstp dword [matriz_resultado+(MATRIZ+matriz_44)]
-
-	
-	; Copio ahora la matriz. 
-
-	mov eax, [matriz_resultado+(MATRIZ+matriz_11)]
-	mov [rcx+(MATRIZ+matriz_11)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_21)]
-	mov [rcx+(MATRIZ+matriz_21)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_31)]
-	mov [rcx+(MATRIZ+matriz_31)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_41)]
-	mov [rcx+(MATRIZ+matriz_41)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_12)]
-	mov [rcx+(MATRIZ+matriz_12)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_22)]
-	mov [rcx+(MATRIZ+matriz_22)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_32)]
-	mov [rcx+(MATRIZ+matriz_32)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_42)]
-	mov [rcx+(MATRIZ+matriz_42)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_13)]
-	mov [rcx+(MATRIZ+matriz_13)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_23)]
- 	mov [rcx+(MATRIZ+matriz_23)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_33)]
-	mov [rcx+(MATRIZ+matriz_33)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_43)]
-	mov [rcx+(MATRIZ+matriz_43)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_14)]
-	mov [rcx+(MATRIZ+matriz_14)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_24)]
-	mov [rcx+(MATRIZ+matriz_24)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_34)]
-	mov [rcx+(MATRIZ+matriz_34)], eax
-	mov eax, [matriz_resultado+(MATRIZ+matriz_44)]
-	mov [rcx+(MATRIZ+matriz_44)], eax
-
-
-	%undef matriz_resultado
-
-	mov rsp, rbp
-	pop rbp
+	emms
 	ret
+
+
+
+
+;--------------------------------------------------------------------
 
 
 Multiplicar_Matriz_Vector:
@@ -1014,25 +731,21 @@ Multiplicar_Matriz_Vector:
 	; vector destino (r8) = matriz(rcx)*vector origen (rdx)
 	; r8 = rcx * rdx  
 
-
-;;;OPTIMIZABLE;;;
-
 	; Acá hago uso de la tecnología SIMD (we!)
 	; Los datos necesitan estar alineados a 16 bytes (o sea, que la dirección de memoria
 	; sea divisible por 16). Si no podés usar movdqu en vez de movaps, pero es más lento.
 
-
 	; Para DPPS:  (producto escalar en paralelo)
 	;
 	; El tercer operando en dpps especifica dos nibbles:
-	; el primer nibble (1) dice en qué parte del registro va el resultado. 0001b sería en la primera parte
-	; el segundo nibble (F) indica qué se multiplica, 0001b sería solo la primera parte, 1111b sería todo.
+	; el primer nibble dice en qué parte del registro va el resultado. 0001b sería en la primera parte
+	; el segundo nibble indica qué se multiplica, 0001b sería solo la primera parte, 1111b sería todo.
 
 
 	; Leí que el dpps medio que no ofrece mayor performance con respecto a otros métodos, pero bueh,
-	; lo dejamos así. La versión sin SIMD está en el 3D_3. Si es más rápida, se usará esa.
+	; lo dejamos así. La versión sin SIMD está en el 3D_3. Si es más rápida, se usará esa y se conservará
+	; esta para futuras referencias.
 	
-
 	movaps xmm0, [rcx+MATRIZ+matriz_11]   ; Con estas dos instrucciones cargo en los registros la fila de la matriz
 	movaps xmm1, [rdx]                    ; (o los vectores)
 	dpps xmm0,xmm1,11110001b 	      ; Hago el producto escalar y guardo el resultado en la parte más baja del xmm0
