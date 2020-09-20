@@ -72,10 +72,21 @@ WndProc:
   	cmp   qword [uMsg], WM_PAINT                  
 	je    WMPAINT
 
+	;El GDI pide borrar el fondo?
+	
+	cmp qword [uMsg], WM_ERASEBKGND
+	je WM_ERASEBKGND
+
 	;El usuario cliqueó en algún lugar?
 
 	cmp   qword [uMsg], WM_LBUTTONDOWN
 	je    WMLBUTTONDOWN
+
+	;El usuario tocó una tecla?
+
+	cmp   qword [uMsg], WM_KEYDOWN
+	je    WMKEYDOWN
+
 
 
 ;_______Función para tratar los mensajes ignorados
@@ -94,9 +105,91 @@ DefaultMessage:
 
 ;_______Ahora definimos las subrutinas para cada mensaje: 
 
-
 ;--------------------------------------------------------------------
 
+WMKEYDOWN:
+
+
+
+;_______Guardo los parametros del mensaje en los registros
+
+	xor rcx, rcx
+	xor rdx, rdx
+	mov cx, word [wParam]
+	mov dx, word [wParam+2]
+
+;_______Verifico qué tecla se tocó (usar cmov acá, no ser tan cutre)
+
+
+	; Cargo el valor falso/default en st0 (no cambia nada) y el valor verdadero en st1 (suma valor)
+
+	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [factor_movimiento_z]
+	faddp	
+	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	
+	
+	; Comparo si es cierto que tocó la W. Si es verdadero, muevo el valor verdadero a st0.
+
+	cmp cx, VK_W
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4+vector_3]
+	fstp st0
+
+	; Repito para todas las letras. 
+
+	; S (va atrás)
+
+	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [factor_movimiento_z]
+	fsubp	
+	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	cmp cx, VK_S
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4+vector_3]
+	fstp st0
+
+	; A (derecha)
+
+	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [factor_movimiento_x]
+	faddp	
+	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	cmp cx, VK_A
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4+vector_1]
+	fstp st0
+
+	; D (izquierda)
+
+	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [factor_movimiento_x]
+	fsubp	
+	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	cmp cx, VK_D
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4+vector_1]
+	fstp st0
+
+
+
+	
+
+	xor rax, rax
+	jmp Return.WM_Processed
+
+
+
+
+
+
+;--------------------------------------------------------------------
+WM_ERASEBKGND:
+
+	xor rax,rax
+	; Esto lo hago así porque yo me ocupo de borrar todo con FillRect
+	
+	jmp Return.WM_Processed
 	
 WMCLOSE:
 

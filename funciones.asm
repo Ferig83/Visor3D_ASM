@@ -683,7 +683,7 @@ Cargar_Datos_3D:
 ;Chanchada begins ----
 
 	add r14, 4 ; muevo dos bytes extra para ir al offset del color
-	mov edx, 0xB0DAF0
+	mov edx, COLOR_FIGURA
 	mov [r14], edx
 	add r14, COLOR_size+12 ; muevo los dos bytes restantes + el padding para que quede alineado a 16 (requerido para SSE 4.1)	
 

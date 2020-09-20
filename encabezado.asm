@@ -68,6 +68,7 @@ WM_LBUTTONDOWN       EQU 0x201
 WM_PAINT             EQU 0Fh
 WM_SETFONT           EQU 30h
 WM_TIMER	     EQU 0x0113
+WM_KEYDOWN	     EQU 0x0100
 
 
 
@@ -81,31 +82,30 @@ WS_VISIBLE           EQU 10000000h
 WS_POPUP             EQU 80000000h
 
 
+;--- Teclas ---------------------------------------------------------
+
+VK_A equ 0x41
+VK_D equ 0x44
+VK_S equ 0x53
+VK_W equ 0x57
 
 ;--- Constantes propias ---------------------------------------------
 
-WindowWidth          EQU 640
-WindowHeight         EQU 170
-FullScreenWidth      EQU 1366
-FullScreenHeight     EQU 768
+COLOR_FIGURA 			equ 0x00B0DAF0   ; RGBA, en little endian (AABBGGRR). Dejar el Alpha en 00
+FSP_MITAD_ANCHO_PANTALLA 	equ 0x442ac000   ; 683 en float 32
+FSP_MITAD_ALTO_PANTALLA  	equ 0x43c00000   ; 384 en float 32
+ANCHO_PANTALLA       		equ 1366
+ALTO_PANTALLA        		equ 768
 
 
-;--- NIPU -----------------------------------------------------------
+;--- SIMBOLOS EXTERNOS (Funciones de WIN API, no decoradas) ---------
 
-; Esto es del programa en sí 
-
-Static1ID            EQU 100
-Static2ID            EQU 101
-Edit1ID              EQU 102
-Edit2ID              EQU 103
-
-;--- SIMBOLOS EXTERNOS (Funciones de WIN API) -----------------------
-
-extern AdjustWindowRectEx                       ; Import external symbols
-extern BeginPaint                               ; Windows API functions, not decorated
+extern AdjustWindowRectEx                    
+extern BeginPaint                              
 extern BitBlt
 extern CloseHandle
 extern CreateCompatibleDC
+extern CreateCompatibleBitmap
 extern CreateFileA
 extern CreateFileW
 extern CreateFontA
@@ -120,6 +120,7 @@ extern DispatchMessageA
 extern EndPaint
 extern ExitProcess
 extern FillRect
+extern GetClientRect
 extern GetCommandLineW
 extern GetCommandLineA
 extern GetDCEx
@@ -152,6 +153,7 @@ extern QueryPerformanceCounter
 extern QueryPerformanceFrequency
 extern ReadFile
 extern ReadFileEx
+extern RedrawWindow
 extern RegisterClassExA
 extern ReleaseDC
 extern SelectObject
@@ -245,25 +247,23 @@ endstruc  ; pesa 20 bytes
 struc MATRIZ
 	
 	matriz_11 resd 1
-	matriz_12 resd 1
-	matriz_13 resd 1
-	matriz_14 resd 1
 	matriz_21 resd 1
-	matriz_22 resd 1
-	matriz_23 resd 1
-	matriz_24 resd 1
 	matriz_31 resd 1
-	matriz_32 resd 1
-	matriz_33 resd 1
-	matriz_34 resd 1
 	matriz_41 resd 1
+	matriz_12 resd 1
+	matriz_22 resd 1
+	matriz_32 resd 1
 	matriz_42 resd 1
+	matriz_13 resd 1
+	matriz_23 resd 1
+	matriz_33 resd 1
 	matriz_43 resd 1
+	matriz_14 resd 1
+	matriz_24 resd 1
+	matriz_34 resd 1
 	matriz_44 resd 1
 
-	
-
-endstruc  ; esto pesa 64, y está como row-major
+endstruc  ; esto pesa 64, y está como column-major
 
 ;----------------------------
 

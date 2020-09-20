@@ -1,3 +1,9 @@
+; TO_DO:  chequear el tema de los colores, porque si el producto vectorial cambia de signo
+; me salen colores que no van. Poner un cmov para que si es menor a cero, sea cero (y lo mismo
+; si es mayor, ya que me parece que no está normalizado el vector y a la larga me va a traer
+; problemas)
+
+
 ;	 IMPORTANTISIMOUUU!!!!
 ;
 ;	 Vamos a hacer una excepción para ver si funciona, que es poner toda la rasterización
@@ -27,6 +33,49 @@ Actualizar:
 	sub rsp, SHADOWSPACE+256 ; revisar esta cantidad (ojo los parametros)
 
 
+;_______Primero actualizo los datos según tiempo pasado
+
+
+	; Rotación en X 
+
+	fld dword [tita_rotacion_x]
+	fld dword [temporizador+tiempo_transcurrido]
+	fld dword [factor_velocidad_rotacion_x]
+	fmulp
+	faddp
+	fstp dword [tita_rotacion_x]
+
+
+	; Rotación en Z 
+
+	fld dword [tita_rotacion_z]
+	fld dword [temporizador+tiempo_transcurrido]
+	fld dword [factor_velocidad_rotacion_z]
+	fmulp
+	faddp
+	fstp dword [tita_rotacion_z]
+
+;_______Ahora ajusto la cámara
+
+					
+	mov rcx, matriz_camara
+	mov rdx, vector_camara_delante
+	mov r8, vector_camara_arriba
+	mov r9, vector_camara_posicion
+	call Inicializar_Matriz_Camara
+
+	mov rcx, matriz_vista
+	mov rdx, matriz_camara   
+	call Inicializar_Matriz_Vista  
+
+
+
+	; Cuidado de contemplar todo esto más adelante.
+
+
+
+
+;_______Ahora vamos con las matrices y el trabajo duro...
 	
 	
 	mov eax, 100
@@ -34,31 +83,17 @@ Actualizar:
 	xor rax,rax
 
 ;_______Preparamos la matriz_mundo. Como primero se rota y luego se traslada, vamos a tener
-;	que hacer MATRIZ_TRASLACION*MATRIZ_ROTACION (o tantas rotaciones como haya)
+;	que hacer MATRIZ_ROTACION_X*MATRIZ_ROTACION_Y*MATRIZ_TRASLACION
+;
+;	Ojo al orden! la multiplicación es A = A * MATRIZ_B
+;	pero si multiplicás varias matrices para luego multiplicarla por el vector, el orden
+; 	V*M1*M2*M3   siendo M1 la primera matriz que se quiere aplicar. 
+;
+;	Muchas veces se ve al reves:   M3*M2*M1*V por lo que para aplicar M1 primero tenías
+;	que arrancar multiplicando desde M3.
 
 
-	; Inicializo la matriz del espacio "Mundo" con la traslacion
-
-
-	mov rcx, matriz_mundo	
-	mov edx, 0x00000000 ; 0
-	mov r8d, 0x00000000 ; 0
-	mov r9d, 0x40400000 ; 3  
-	call Inicializar_Matriz_Traslacion	
-
-	; Inicializo la matriz B con rotacion
-	
-	mov rcx, matriz_B
-	mov edx, [tita_rotacion_x] 
-	call Inicializar_Matriz_Rotacion_X
-
-	; Multiplico ambas (siempre llamar A,B. Esta diseñado para respetar el orden de transformación)
-
-	mov rcx, matriz_mundo
-	mov rdx, matriz_B
-	call Multiplicar_Matriz_Matriz
-
-	; Agrego la rotación en Z, que se ve linda. 
+	; Agrego la rotación en Z
 
 	mov rcx, matriz_B
 	mov edx, [tita_rotacion_z]
@@ -66,65 +101,33 @@ Actualizar:
 	mov rcx, matriz_mundo
 	mov rdx, matriz_B
 	call Multiplicar_Matriz_Matriz
+
+
+	; Agrego rotación en X
 	
+	mov rcx, matriz_B
+	mov edx, [tita_rotacion_x] 
+	call Inicializar_Matriz_Rotacion_X
+	mov rcx, matriz_mundo
+	mov rdx, matriz_B
+	call Multiplicar_Matriz_Matriz
+
+
+	; Agrego traslación en Z = 3
+
+
+	mov rcx, matriz_B	
+	mov edx, 0x00000000 ; 0
+	mov r8d, 0x00000000 ; 0
+	mov r9d, 0x40400000 ; 3 
+	call Inicializar_Matriz_Traslacion	
+	mov rcx, matriz_mundo
+	mov rdx, matriz_B
+	call Multiplicar_Matriz_Matriz
+
+
 	; Ahora en "matriz_mundo" tengo la transformación (puedo descartar matriz_B)
 
-;_______Ahora preparamos la matriz_camara
-
-
-
-;TODO:  ; Falta "rellenar" los vectores de la cámara, porque hay que hacer productos vectoriales 
-	; en el caso de que se muevan. En el main están hardcodeados porque no está implementado el
-	; movimiento aún.
-
-;TODO   ; La transformación de la cámara está mal (se cuelga).
-        ; como no la necesito de momento la capamos (hacerla de nuevo igual)
-	;mov rcx, matriz_camara
-	;mov rdx, vector_camara_delante
-	;mov r8, vector_camara_derecha
-	;mov r9, vector_camara_arriba
-	;mov qword [rsp + 4 * 8], vector_camara_posicion
-	;call Inicializar_Matriz_Camara
-
-
-;_______Si invertimos la matriz obtenemos la matriz_vista, pero directamente la inicializo
-;	sin depender de la matriz_cámara
-
-	mov rcx, matriz_vista
-	mov rdx, vector_camara_delante
-	mov r8, vector_camara_derecha
-	mov r9, vector_camara_arriba
-	mov qword [rsp + 4 * 8], vector_camara_posicion
-	call Inicializar_Matriz_Vista
-
-
-;_______Inicializamos la matriz proyección
-
-
-
-
-;TODO   ; ATENCION:
-	; Esta matriz de abajo está buggeada.
-	; o es un error de pila o algo pasa
-	; Estoy armando la matriz sin argumentos, con
-	; los valores estandar.
-	;mov rcx, matriz_proyeccion
-	;mov edx, 768
-	;mov r8d, 1366
-	;mov r9d, 0x3fc90fdb ; pi/2
-	;mov   qword [RSP + 4 * 8], 0x447a0000        
-	;mov   qword [RSP + 5 * 8], 0x3dcccccd
-	;call Inicializar_Matriz_Proyeccion
-	
-	;voy a llamar a esta matriz hardcodeada, con los argumentos de arriba
-	
-	mov rcx, matriz_proyeccion
-	call Inicializar_Matriz_Proyeccion_FAKE
-
-
-	mov rcx, matriz_proyeccion
-	mov rdx, matriz_vista
-	call Multiplicar_Matriz_Matriz
 
 
 ;_______Tenemos todo, pero necesito saber cuales triángulos rasterizar y cuales no, así que no puedo unificar
@@ -154,21 +157,21 @@ Actualizar:
 
 	; Transformo al espacio mundo los tres vectores del triángulo
 
-	mov rcx, matriz_mundo
-	lea rdx, [r15+TRIANGULO+vertice1]
+	lea rcx, [r15+TRIANGULO+vertice1]	
+	mov rdx, matriz_mundo
 	mov r8,  triangulo_a_analizar+TRIANGULO+vertice1
-	call Multiplicar_Matriz_Vector
+	call Multiplicar_Vector_Matriz
 	
-	
-	mov rcx, matriz_mundo
-	lea rdx, [r15+TRIANGULO+vertice2]
+	lea rcx, [r15+TRIANGULO+vertice2]	
+	mov rdx, matriz_mundo
 	mov r8,  triangulo_a_analizar+TRIANGULO+vertice2
-	call Multiplicar_Matriz_Vector
+	call Multiplicar_Vector_Matriz
 	
-	mov rcx, matriz_mundo
-	lea rdx, [r15+TRIANGULO+vertice3]
+	
+	lea rcx, [r15+TRIANGULO+vertice3]	
+	mov rdx, matriz_mundo
 	mov r8,  triangulo_a_analizar+TRIANGULO+vertice3
-	call Multiplicar_Matriz_Vector
+	call Multiplicar_Vector_Matriz
 
 
 	; Copio el código de color de paso
@@ -358,21 +361,41 @@ Actualizar:
 	; como hago abajo.
 
 
-	mov rcx, matriz_proyeccion
-	mov rdx, triangulo_a_analizar+TRIANGULO+vertice1
+
+
+
+;_______Genero las matrices como para tomar todos los triángulos del espacio "mundo"
+;	y llevarlos al espacio "pantalla".
+
+	mov rcx, matriz_pantalla
+	call Inicializar_Matriz_Identidad
+
+	mov rcx, matriz_pantalla
+	mov rdx, matriz_vista
+	call Multiplicar_Matriz_Matriz
+
+	mov rcx, matriz_pantalla
+	mov rdx, matriz_proyeccion
+	call Multiplicar_Matriz_Matriz
+
+
+	; Aplico las transformaciones al triángulo
+
+	mov rcx, triangulo_a_analizar+TRIANGULO+vertice1
+	mov rdx, matriz_pantalla
 	lea r8, [r13+TRIANGULO+vertice1]
-	call Multiplicar_Matriz_Vector
-	mov rcx, matriz_proyeccion
-	mov rdx, triangulo_a_analizar+TRIANGULO+vertice2
+	call Multiplicar_Vector_Matriz
+
+	mov rcx, triangulo_a_analizar+TRIANGULO+vertice2
+	mov rdx, matriz_pantalla
 	lea r8, [r13+TRIANGULO+vertice2]
-	call Multiplicar_Matriz_Vector
-	mov rcx, matriz_proyeccion
-	mov rdx, triangulo_a_analizar+TRIANGULO+vertice3
+	call Multiplicar_Vector_Matriz
+
+
+	mov rcx, triangulo_a_analizar+TRIANGULO+vertice3
+	mov rdx, matriz_pantalla	
 	lea r8, [r13+TRIANGULO+vertice3]
-	call Multiplicar_Matriz_Vector
-
-
-
+	call Multiplicar_Vector_Matriz
 
 	
 ;_______Muevo el color, y lo hago así medio manual porque son 3 bytes	
@@ -394,7 +417,8 @@ Actualizar:
 
 ;_______Una vez que tengo cargado el color hago varío el mismo según sombra
 
-	;Debería normalizarlo pero banquemos, ya lo tengo normalizado en el main.asm. Probemos primero que hay
+
+;;;;;;;;Debería normalizarlo pero banquemos, ya lo tengo normalizado en el main.asm. Probemos primero que hay
 		
 	fld dword [normal_normalizada+VECTOR4+vector_1]
 	fld dword [vector_luz+VECTOR4+vector_1]
@@ -450,7 +474,6 @@ Actualizar:
 
 	pop rbx
 		
-
 	
 
 	
@@ -479,18 +502,18 @@ Actualizar:
 	fldz
 	fld dword [r13+VECTOR4+vector_3]	
 	fld dword [r13+VECTOR4+vector_4]               	
-	fcom st2
-	fcmove st0,st1
-	fdivp
-	fistp dword [r13+VECTOR4+vector_3]		; esto va en float pero ni sé si conviene así o dejarlo en entero
+	fcom st2					; Me fijo si st0 es igual a st2 (o sea, si es igual a cero)
+	fcmove st0,st1					; Si lo es, entonces muevo el mismo valor de st1 a st0
+	fdivp						; y lo divido (así divido por uno en vez de por cero)
+	fistp dword [r13+VECTOR4+vector_3]		; (esto va en float pero ni sé si conviene así o dejarlo en entero)
 	
 	fld dword [r13+VECTOR4+vector_1]
 	fld dword [r13+VECTOR4+vector_4]
 	fcom st2
 	fcmove st0,st1
 	fdivp
-	fchs
-	fld1
+	fchs ;;;; esto si piden invertir X
+	fld1       
 	faddp
 	fld dword [MitadAnchoPantalla]
 	fmulp
@@ -504,7 +527,7 @@ Actualizar:
 	fcom st2
 	fcmove st0,st1
 	fdivp
-	;fchs    ; comentar esto es mi humilde manera de invertir la Y
+	fchs   ;;;; y esto si piden invertir la Y
 	fld1
 	faddp
 	fld dword [MitadAltoPantalla]
@@ -541,13 +564,16 @@ Actualizar:
 	pop r14
 	pop r13
 	pop r12
+
+	;Reinicio la matriz_mundo, así no me acumula transformaciones
 	
+	mov rcx, matriz_mundo	
+	call Inicializar_Matriz_Identidad
+
 	xor rax, rax	
 	mov rsp, rbp
 	pop rbp
 	ret
-
-
 
 
 

@@ -8,29 +8,23 @@ global Start
 %include 'funciones.asm'
 %include 'actualizar.asm'
 %include 'pintar.asm'
-%include 'macros.asm'
 %include 'matrices.asm'
 
 ;--- DATA -----------------------------------------------------------
 
 section .data progbits alloc noexec write align=16       
 
+MitadAnchoPantalla dd FSP_MITAD_ANCHO_PANTALLA   ; 683 en float 32
+MitadAltoPantalla  dd FSP_MITAD_ALTO_PANTALLA    ; 384 en float 32
 
-AnchoPantalla	   dd 1366
-AltoPantalla	   dd 768
-MitadAnchoPantalla dd 0x442ac000   ; 683 en float 32
-MitadAltoPantalla  dd 0x43c00000   ; 384 en float 32
-rectangulo_pantalla dd 0,0,1366,768
-
-Color_Figura_RGA dd 0x0000FF00
+rectangulo_pantalla dd 0,0,ANCHO_PANTALLA,ALTO_PANTALLA
 
 BackgroundColour dd 0xFFFFFF      		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
-WindowName 	 db "Virtual Reality", 0                     ; Título de la ventana (nombre de la app)
+WindowName 	 db "Virtual Rigantity", 0                     ; Título de la ventana (nombre de la app)
 ClassName        db "Ventana", 0	                       ; Nombre de la clase de la ventana (identificador choto)
-ExitText         db "¿Estás seguro de que quiere salir?", 0   ; Texto del mensaje de Salir 
+ExitText         db "¿Está seguro de que quiere salir?", 0   ; Texto del mensaje de Salir 
 
 click_izquierdo  dd 0
-handle_ventana   dq 0  ;lo necesito global para el invalidateRect, sino es un bardo
 
 
 ; -- CADENAS DE ERRORES --
@@ -44,47 +38,54 @@ titulo_error db 'Error',0
 
 ; -- ANGULOS DE ROTACION --
 
-tita_rotacion_x dd 0.0  ; roto un misero radian
+tita_rotacion_x dd 0.0
 tita_rotacion_y dd 0.0
 tita_rotacion_z dd 0.0
-delta_rotacion_x dd 0.05
-delta_rotacion_z dd 0.1
+
+factor_velocidad_rotacion_x dd 2.0
+factor_velocidad_rotacion_z dd 0.0;4.0
+factor_conversion_tiempo dd 1.0		; La verdad si el factor es 1, la multiplicación es media al dope. Pero dejarlo por si
+					; tengo que cambiarlo.
+factor_movimiento_z dd 0.1
+factor_movimiento_x dd 0.1
 
 
-; -- CAMARA Y LUCES --
+; -- CAMARA Y LUCES (respetar el alineamiento!)
 
-align 16
- vector_camara_arriba 		dd 0x00000000,0x3f800000,0x00000000,0x3f800000   ;   xyzw: 0,1,0,1
- vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw: 0,0,1,1
- vector_camara_derecha		dd 0x3f800000,0x00000000,0x00000000,0x3f800000	 ;   xyzw: 1,0,0,1
- vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
- vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
-
- ;test
- vector_luz2			dd 0x00000000,0x00000000,0x3f800000,0x3f800000	 ;   xyzw: 0,0,-1,1
-
-
+ align 16  
+ 	vector_camara_arriba 		dd 0x00000000,0x3f800000,0x00000000,0x3f800000   ;   xyzw: 0,1,0,1
+ 	vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw: 0,0,1,1
+ 	vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
+ 	vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+	
+	; REGLA DE LA MANO DERECHA, OJO (se cumple la misma regla para la transformación de la figura??)
+ 	
 
 ;--- BSS --------------------------------------------------------
 
 section .bss nobits alloc noexec write align=16
 
+; Estas son para la macro Imprimir_RAX. No la estoy usando la verdad
+; cadena_auxiliar resb 20
+; cadena_impresion resb 20
 
-; cadena_auxiliar resb 32;20  ;estas dos son para las macros de imprimir EAX
-; cadena_impresion resb 32; 20
 
+ temporizador resb TIMER_size
 
- prueba resq 1  ; para meter los valores de los test que haga
+ prueba resq 1  ; para meter los valores de los debug que haga
 
- hInstance        	resq 1    ;necesario para el blit
+ hInstance        	resq 1    
  BackgroundBrush  	resq 1
  DC_pantalla	        resq 1
-
-
- ;esto mepa que se va a la basura... no sé si guardarlo para las texturas
-
- hBitmap 		resq 1         ; este es el HBITMAP que necesitamos para casi todo lo que es blitteo
+ hBitmap 		resq 1        
  bmpDC 			resq 1
+
+ hdcBuffer		resq 1
+ hbmBuffer		resq 1
+ hbmOldBuffer		resq 1
+ hdcMem			resq 1
+ hbitmap_pantalla	resq 1
+ hbmOld			resq 1
 
 
  ; Hasta que no encuentre otro método necesitaré que las siguientes tres sean globales
@@ -95,31 +96,42 @@ section .bss nobits alloc noexec write align=16
  ancho_pantalla_real resq 1
 
 
-alignb 16 
- puntero_objeto3d_original	resq 1
+ vector_camara_X resb VECTOR4_size	
+ vector_camara_Y resb VECTOR4_size	
+ vector_camara_Z resb VECTOR4_size
+ vector_vision   resb VECTOR4_size 
 
-alignb 16
- puntero_objeto3d_mundo		resq 1  ; cambiar nombre a "puntero_objeto3d_a_rasterizar"
 
- cantidad_triangulos_objeto		resq 1
- cantidad_triangulos_a_rasterizar 	resq 1	
- handle_heap_objeto3d			resq 1
- handle_heap_commandline 		resq 1
- handle_archivo_objeto3d		resq 1	
- tamanio_archivo_objeto3d 		resq 1 
 
-alignb 16
- matriz_mundo 		resd 16
- matriz_camara		resd 16
- matriz_vista		resd 16
- matriz_proyeccion	resd 16
+
+ ;Respetar el alineamiento! no funcionarán las instrucciones de SIMD sino
+
+ alignb 16 
+ 	puntero_objeto3d_original	resq 1
+
+ alignb 16
+ 	puntero_objeto3d_mundo			resq 1  ; cambiar nombre a "puntero_objeto3d_a_rasterizar"
+ 	cantidad_triangulos_objeto		resq 1
+ 	cantidad_triangulos_a_rasterizar 	resq 1	
+ 	handle_heap_objeto3d			resq 1
+ 	handle_heap_commandline 		resq 1
+ 	handle_archivo_objeto3d		resq 1	
+ 	tamanio_archivo_objeto3d 		resq 1 
+
+ alignb 16
+ 	matriz_mundo 		resd 16
+ 	matriz_camara		resd 16
+ 	matriz_vista		resd 16
+ 	matriz_proyeccion	resd 16
+	matriz_identidad	resd 16
+	matriz_pantalla		resd 16
  
- ;auxiliares
+ ;Auxiliares
 
  matriz_A   		resd 16   ; esta creo que no la estoy usando
  matriz_B     		resd 16
  	 
- triangulo_a_analizar 	resb TRIANGULO_size ; 52 bytes  
+ triangulo_a_analizar 	resb TRIANGULO_size ; 64 bytes  
  
 
 
@@ -131,8 +143,8 @@ section .text progbits alloc exec nowrite align=16
 
 Start:
 
-	sub rsp, 8    ;Para alinear la pila a 16 bytes ya que eso mejora la performance
-	sub rsp, SHADOWSPACE    ;32 bytes de shadow space (para GetModuleHandleA?)
+	sub rsp, 8    		;Para alinear la pila a 16 bytes ya que eso mejora la performance
+	sub rsp, SHADOWSPACE    ;32 bytes de shadow space 
 	xor ecx,ecx
 	call GetModuleHandleA
 	mov qword [REL hInstance], rax
@@ -154,24 +166,13 @@ WinMain:
 
 	push rbp		
 	mov rbp, rsp            
-	sub rsp, 184+8*PARAMETROS+SHADOWSPACE+8    
-							;160 bytes para variables locales  (esto lo personalizo yo en mis tablas)
+	sub rsp, 136+8*PARAMETROS+SHADOWSPACE+8  
+							;136 bytes para variables locales  (esto lo personalizo yo en mis tablas)
 							;64 (8*8) para parámetros (debe ser así porque quizas tienen un máximo de 8 argumentos de 64 bits cada 							; uno)
 							;32 del shadow space  (SIEMPRE usar esto, ya que es para guardar primeros cuatro argumentos: 8*4=32)
 							;8 para alinear
 							;Queda en multiplos de 16 para las funciones de la API 
 
-
-%define temporizador       RBP - 184		; 8 bytes	
-
-%define Screen.Width       RBP - 160            ; 4 bytes
-%define Screen.Height      RBP - 156            ; 4 bytes
-
-%define ClientArea         RBP - 152            ; RECT structure. 16 bytes
-%define ClientArea.left    RBP - 152            ; 4 bytes. Start on a 4 byte boundary
-%define ClientArea.top     RBP - 148            ; 4 bytes
-%define ClientArea.right   RBP - 144            ; 4 bytes
-%define ClientArea.bottom  RBP - 140            ; 4 bytes. 
 
 %define wc                 RBP - 136            ; WNDCLASSEX, 80 bytes
 %define wc.cbSize          RBP - 136            ; 4 bytes. 
@@ -180,12 +181,12 @@ WinMain:
 %define wc.cbClsExtra      RBP - 120            ; 4 bytes
 %define wc.cbWndExtra      RBP - 116            ; 4 bytes
 %define wc.hInstance       RBP - 112            ; 8 bytes
-%define wc.hIcon           RBP - 104            ; Icono grande (8 bytes)
-%define wc.hCursor         RBP - 96             ; Cursor (8 bytes)
+%define wc.hIcon           RBP - 104            ; 8 bytes
+%define wc.hCursor         RBP - 96             ; 8 bytes
 %define wc.hbrBackground   RBP - 88             ; 8 bytes
 %define wc.lpszMenuName    RBP - 80             ; 8 bytes
 %define wc.lpszClassName   RBP - 72             ; 8 bytes
-%define wc.hIconSm         RBP - 64             ; Icono chiquito 
+%define wc.hIconSm         RBP - 64             ; 8 bytes 
 
 %define msg                RBP - 56             ; MSG, 48 bytes
 %define msg.hwnd           RBP - 56             ; 8 bytes
@@ -196,7 +197,7 @@ WinMain:
 %define msg.time           RBP - 24             ; 4 bytes
 %define msg.py.x           RBP - 20             ; 4 bytes
 %define msg.pt.y           RBP - 16             ; 4 bytes
-%define msg.Padding2       RBP - 12             ; 4 bytes. Structure length padding
+%define msg.Padding2       RBP - 12             ; 4 bytes. padding
 
 %define hWnd               RBP - 8              ; 8 bytes
 
@@ -204,26 +205,49 @@ WinMain:
 ;--- Fin tabla ---
 
 
-
-
+;_______Primero cargo los datos del archivo .3D y preparo el temporizador
 
 	lea rcx, [temporizador+frecuencia]
 	call QueryPerformanceFrequency  ; esto lo necesito para setearlo
-
 	call Cargar_Datos_3D
 
+;_______Preparo algunas bellas matrices
+
+	
+	mov rcx, matriz_mundo	
+	call Inicializar_Matriz_Identidad
+
+;TODO   ; ATENCION:
+	; Esta matriz de abajo está buggeada.
+	; o es un error de pila o algo pasa
+	; Estoy armando la matriz sin argumentos, con
+	; los valores estandar.
+	;mov rcx, matriz_proyeccion
+	;mov edx, 768
+	;mov r8d, 1366
+	;mov r9d, 0x3fc90fdb ; pi/2
+	;mov   qword [RSP + 4 * 8], 0x447a0000        
+	;mov   qword [RSP + 5 * 8], 0x3dcccccd
+	;call Inicializar_Matriz_Proyeccion
+	
+	;voy a llamar a esta matriz hardcodeada, con los argumentos de arriba
+	
+	mov rcx, matriz_proyeccion
+	call Inicializar_Matriz_Proyeccion_FAKE
 
 
-
-
-
+;_______Creo un brush para el color de fondo
 
  	mov   ecx, dword [REL BackgroundColour]
  	call  CreateSolidBrush 
  	mov   qword [REL BackgroundBrush], rax
 
- 	mov   dword [wc.cbSize], 80                    
- 	mov   dword [wc.style], CS_HREDRAW | CS_VREDRAW | CS_BYTEALIGNWINDOW 
+
+;_______Procedemos a registrar y crear la ventana
+
+
+ 	mov   dword [wc.cbSize], 80  ; simplemente es el tamaño nomás de la estructura                  
+ 	mov   dword [wc.style], 0 
  	lea   rax, [REL WndProc]
  	mov   qword [wc.lpfnWndProc], rax              
  	mov   dword [wc.cbClsExtra], NULL              
@@ -273,95 +297,28 @@ WinMain:
  	lea   rcx, [wc]                               
  	call  RegisterClassExA
 
-
-
-;_______Saco los valores del monitor, para el fullscreen, y luego los meto en el clientarea
-
- 	mov   ecx, SM_CXSIZE  			       ; Tamaño de la pantalla en X
- 	call  GetSystemMetrics                         ; Recupero el ancho de la pantalla
- 	mov   dword [Screen.Width], eax                
-	mov   dword [ancho_pantalla_real], eax         ; Esto es para la mascara, aprovecho hacerlo acá
-
- 	mov   ecx, SM_CYSIZE			       ; Tamaño de la pantalla en Y
- 	call  GetSystemMetrics                         ; Recupero el alto de la pantalla
- 	mov   dword [Screen.Height], eax               
-
- 	mov   dword [ClientArea.left], 0             
- 	mov   dword [ClientArea.top], 0                
-	mov   eax, dword [Screen.Width]
- 	mov   dword [ClientArea.right], eax    	       
-	mov eax, dword [Screen.Height]
- 	mov   dword [ClientArea.bottom], eax  	       
-
-;_______Saco el valor de la ventana (total, con el frame incluido), habiendo sacado el client area (la parte de adentro)
-
- 	lea   RCX, [ClientArea]                        
- 	mov   EDX, WS_POPUP | WS_VISIBLE               ;antes: WS_OVERLAPPEDWINDOW ; Window Style
- 	xor   R8D, R8D
- 	mov   R9D, WS_EX_COMPOSITED                    
- 	call  AdjustWindowRectEx                       
-                                                      
- 	
-;_______Con esto tengo el tamaño de la VENTANA en la estructura de ClientArea (o sea, la estructura
-;	tiene el nombre del client area pero la estoy usando ahora para guardar la de la ventana)
-;	Lo que voy a hacer ahora es hacer la diferencia entre bottom y top, y entre right y left, para
-;	obtener la altura real. Si estás usando fullscreen no es necesario todo esto.  
-
-	mov   EAX, dword [ClientArea.bottom]          
- 	sub   EAX, dword [ClientArea.top]              ; Altura = ClientArea.bottom - ClientArea.top
- 	mov   dword [ClientArea.bottom], EAX           
-
- 	mov   EAX, dword [ClientArea.right]            
- 	sub   EAX, dword [ClientArea.left]             ; Width = ClientArea.right - ClientArea.left
- 	mov   dword [ClientArea.right], EAX            
-
-
+                                           
 ;_______Meto todos los argumentos al CreateWindowsEx y creo una ventana
-;	hay mucha cosa que debo volver a setear acá si lo que busco es el fullscreen, pero bueh
+;	hay mucha cosa que debo volver a setear acá si lo que busco es el fullscreen, pero bueh. En 3D_5 está el procedimiento
+;	anterior (no estaba mal!)
 
- 	mov   ECX, WS_EX_COMPOSITED
+
+ 	mov   ECX, WS_EX_COMPOSITED | 0x00040000  ; Composited evita el flickering y el otro es para que esté por encima del taskbar
  	lea   RDX, [REL ClassName]
  	lea   R8, [REL WindowName]
- 	mov   R9D, WS_POPUP | WS_VISIBLE;   le saqué el WS_OVERLAPPEDWINDOW para que se vea fullscreen real
+ 	mov   R9D, 0x02000000 | WS_POPUP ; con la del clipchildren           antes, WS_OVERLAPPEDWINDOW 
 
- 	xor   R10D, R10D
- 	mov   EAX, dword [Screen.Width]                
- 	sub   EAX, dword [ClientArea.right]            ; Ancho de ventana corregido
- 	cmovs EAX, R10D                                ; CMOVS (conditional move). Mueve si el signo es 1
-						       ; (hay varios cmov, pero este es el de signo)
-						       ; Lo muevo a cero si es negativo (R10D = 0)
-
- 	shr   EAX, 1                                   ; EAX = (Screen.Width - window height) / 2
-						       ; shr es un shift right, o sea que se pierde el bit menos significativo
-						       ; que a fines prácticos es como dividir por dos. CLEVER SHIT, probalo papá
-							; esto lo hago para centrarlo 
-
-
- 	mov   dword [RSP + 4 * 8], EAX                 ; Posición X, centrada
- 	mov   EAX, dword [Screen.Height]               ; [RBP - 156]
- 	sub   EAX, dword [ClientArea.bottom]           ; Altitud de la ventana corregida  [RBP - 140]
- 	cmovs EAX, R10D                                ; Cero si es negativo (fuerza a arriba de todo)
- 	shr   EAX, 1                                   ; EAX = (Screen.Height - window height) / 2
- 	mov   dword [RSP + 5 * 8], EAX                 ; Posición Y, ya centrada.
-
- 	mov   EAX, dword [ClientArea.right]            
- 	mov   dword [RSP + 6 * 8], EAX                 ; Ancho
-
- 	mov   EAX, dword [ClientArea.bottom]           
- 	mov   dword [RSP + 7 * 8], EAX                 ; Alto
-
+ 	mov   dword [RSP + 4 * 8], 0            	 ; origen x
+ 	mov   dword [RSP + 5 * 8], 0		 	 ; origen y
+	mov   dword [RSP + 6 * 8], ANCHO_PANTALLA        ; fin x
+ 	mov   dword [RSP + 7 * 8], ALTO_PANTALLA         ; fin y
  	mov   qword [RSP + 8 * 8], NULL
  	mov   qword [RSP + 9 * 8], NULL
-
- 	mov   RAX, qword [REL hInstance]
- 	mov   qword [RSP + 10 * 8], RAX
-
+ 	mov   rax, qword [REL hInstance]
+ 	mov   qword [RSP + 10 * 8], rax
  	mov   qword [RSP + 11 * 8], NULL
  	call  CreateWindowExA
  	mov   qword [hWnd], RAX                        
-	mov   qword [handle_ventana], rax  	       ; lo necesito global
-
-
 
  	mov   RCX, qword [hWnd]                        
  	mov   EDX, SW_SHOWNORMAL
@@ -369,6 +326,7 @@ WinMain:
 
  	mov   RCX, qword [hWnd]                        
  	call  UpdateWindow
+
 
 
 
@@ -383,7 +341,7 @@ WinMain:
  	xor r9d, r9d
 	mov rax, 0x0000000000000001 ; PM_REMOVE (borra los mensajes una vez que se procesaron)
 	mov qword [RSP + 4 * 8], rax
- 	call  PeekMessageA		; antesGetMessageA		
+ 	call  PeekMessageA		; antes tenía GetMessageA (just in case)		
 
 ;_______Si devuelve cero, es porque se pidió que cierre todo. Termino en ".done"
 
@@ -417,63 +375,60 @@ WinMain:
  	call  DispatchMessageA
  	jmp   .MessageLoop
 
+
 .dibujar:
+
+	lea rcx, [temporizador+tiempo_final]
+	call QueryPerformanceCounter
+
+	fild dword [temporizador+tiempo_final]     ; carga dword por doble precisión y/o por memoria?
+	fild dword [temporizador+tiempo_inicial]
+	fsubp
+	fld dword [factor_conversion_tiempo]
+	fmulp 
+	fild dword [temporizador+frecuencia]
+	fdivp
+	fstp dword [temporizador+tiempo_transcurrido]
+		
+	
+	
+
+
+;	mov rcx, [temporizador+tiempo_inicial]
+;	mov rax, [temporizador+tiempo_final]
+;	sub rax, rcx
+;	xor rdx, rdx
+;	mov rcx, 1000000 
+;	mul rcx
+;	xor rdx, rdx
+;	mov rcx, [temporizador+frecuencia]
+;	div rcx
+;	mov [temporizador+tiempo_transcurrido], rax
 
 	lea rcx, [temporizador+tiempo_inicial]
 	call QueryPerformanceCounter
 
-	
-;;;;;todo esto es un bloquecito
 
-	
-
-.esperar:
-
-	lea rcx, [temporizador+tiempo_final]
-	call QueryPerformanceCounter
-	mov rcx, [temporizador+tiempo_inicial]
-	mov rax, [temporizador+tiempo_final]
-	sub rax, rcx
-	xor rdx, rdx
-	mov rcx, 1000000  
-	mul rcx
-	xor rdx, rdx
-	mov rcx, [temporizador+frecuencia]
-	div rcx
-	mov [temporizador+tiempo_transcurrido], rax
-
-
-	; Arranco el cronometro acá,
-	; chequeo y si paso menos de un segundo salto a continuar
-	; sino, actualizo
-
-	cmp rax, 18000  ; 60 fps
-	jle .esperar
-
-	
-	fld dword [tita_rotacion_x]
-	fld dword [delta_rotacion_x]
-	faddp
-	fstp dword [tita_rotacion_x]
-	fld dword [tita_rotacion_z]
-	fld dword [delta_rotacion_z]
-	faddp
-	fstp dword [tita_rotacion_z]
+	; Se lo quité y parece que no es necesario, igual me lo quedo (?
+	;mov rcx, [hWnd]
+	;mov rdx, rectangulo_pantalla
+	;call ValidateRect 
 
 
 	call Actualizar
+
+
 	mov rcx, [hWnd]
 	mov rdx, rectangulo_pantalla
-	mov r8d, TRUE
+	mov r8d, FALSE
 	call InvalidateRect
-	mov rcx, [hWnd]
-	call UpdateWindow
-	
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	; ACA SE DIBUJARIA.  Estoy llamando a tirar WM_PAINTs con el UpdateWindows...voy a tener que cambiarlo
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;call Pintar	
+	; No parece que sea necesario
+	;mov rcx, [hWnd]
+	;mov rdx, 0x0010
+	;call UpdateWindow
+
+
 
 .continuar:
 
@@ -483,7 +438,7 @@ WinMain:
 .terminar:
 
  	xor   eax, eax
- 	mov   rsp, rbp                                 ; Quito la pila que hice
+ 	mov   rsp, rbp                                 ; Desarmo la pila que hice
 
  	pop   rbp
  	ret
