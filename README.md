@@ -1,6 +1,6 @@
 # VISOR 3D en Netwide Assembler (NASM) - WINDOWS x64
 
-En desarrollo. Solo utilizo GDI / WinAPI (lo más bajo nivel que puedo llegar con Windows sin perder compatibilidad entre versiones/actualizaciones, porque recordemos que los syscalls cambian de número entre las mismas para jodernos la vida). No se usa OpenGL, ni DirectX/3D/Draw/2D, pero en un futuro quisiera usar DirectX.
+En desarrollo. Solo utilizo GDI / WinAPI (lo más bajo nivel que puedo llegar con Windows sin perder compatibilidad entre versiones/actualizaciones, porque recordemos que los syscalls cambian de número entre las mismas). No se usa OpenGL, ni DirectX/3D/Draw/2D, pero en un futuro quisiera usar DirectX.
 
 ## Estado del proyecto: 
 
