@@ -8,7 +8,10 @@ Desde la última actualización se pulió un poco más el código. Ya no cargo l
 crear más de un objeto y colocarlos a gusto! Para esto implementé una suerte de array dinámico el cual me va a servir mucho para el clipping (el cual todavía no está implementado). 
 
 
+![alt text](https://github.com/Ferig83/Visor3D_ASM/blob/master/lala.png)
 
+
+(las figuras están animadas en el ejecutable. Con rotación. Así bien chulas)
 
 El movimiento de cámara está hecho pero de una forma media vaga (tengo que averiguar cómo hacer para que me lea el teclado sin el delay). Los controles son W,S,A,D (adelante, atrás, izquierda y derecha respectivamente).
 
