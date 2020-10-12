@@ -4,14 +4,20 @@ En desarrollo. Solo utilizo GDI / WinAPI (lo más bajo nivel que puedo llegar co
 
 ## Estado del proyecto: 
 
-El movimiento de cámara está hecho pero de una forma media vaga (tengo que averiguar cómo hacer para que me lea el teclado sin el delay). También falta arreglar algunas cosas relativas al color. En fin, hay mucho por hacer!  Ahora tengo que implementar en assembler los arrays dinámicos (para algo que se llama "clipping"), y algunas cosas me van a llevar cierto tiempo. Todavía debo un buen pulido de código, aunque hice bastante.
+Desde la última actualización se pulió un poco más el código. Ya no cargo los objetos 3D desde la línea de comandos (duele remover código), sino que en cambio puedo
+crear más de un objeto y colocarlos a gusto! Para esto implementé una suerte de array dinámico el cual me va a servir mucho para el clipping (el cual todavía no está implementado). 
 
 
-### Instrucciones de uso: Abrir la terminal (command prompt) y ejecutar el main.exe poniendo de argumento el nombre del objeto ".3d".  
 
-Se puede armar un objeto en blender, exportarlo a .OBJ y usar el conversor que está en la carpeta "conversor" para pasarlo a mi formato ".3d" (tipo "conversor casita.obj"). Una vez convertido iniciar con "main objeto.3d".
 
-Importante! las figuras deben ser __convexas__ ! todavía no está implementado lo de pintar los triángulos en orden de profundidad, por lo que si la figura no es convexa puede aparecer un triángulo pintado por delante cuando debería estar por detrás. Todas las figuras tienen que estar con triángulos.
+El movimiento de cámara está hecho pero de una forma media vaga (tengo que averiguar cómo hacer para que me lea el teclado sin el delay). Los controles son W,S,A,D (adelante, atrás, izquierda y derecha respectivamente).
+
+Como ya no se usa la linea de comandos, elimino las instrucciones de uso. Recordar igual que se puede armar un objeto en blender, exportarlo a .OBJ y usar el conversor que está en la carpeta "conversor" para pasarlo a mi formato ".3d" (tipo "conversor casita.obj"). Una vez convertido se debe cargar en el main y en la lista de actualizaciones en "Actualizar_Todo".
+
+Importante! las figuras deben ser __convexas__ ! todavía no está implementado lo de pintar los triángulos en orden de profundidad, por lo que si la figura no es convexa puede aparecer un triángulo pintado por delante cuando debería estar por detrás. __Todas las figuras tienen que estar con triángulos, sin rectángulos.__
+
+
+
 
 
 
