@@ -89,13 +89,6 @@ VK_D equ 0x44
 VK_S equ 0x53
 VK_W equ 0x57
 
-;--- Constantes propias ---------------------------------------------
-
-COLOR_FIGURA 			equ 0x00B0DAF0   ; RGBA, en little endian (AABBGGRR). Dejar el Alpha en 00
-FSP_MITAD_ANCHO_PANTALLA 	equ 0x442ac000   ; 683 en float 32
-FSP_MITAD_ALTO_PANTALLA  	equ 0x43c00000   ; 384 en float 32
-ANCHO_PANTALLA       		equ 1366
-ALTO_PANTALLA        		equ 768
 
 
 ;--- SIMBOLOS EXTERNOS (Funciones de WIN API, no decoradas) ---------
@@ -132,11 +125,13 @@ extern GetMessageA
 extern GetModuleHandleA
 extern GetModuleFileNameW
 extern GetObjectA
-extern GetProcessHeap
 extern GetSystemMetrics
 extern HeapAlloc
+extern HeapCreate
 extern HeapDestroy
 extern HeapFree
+extern HeapReAlloc
+extern HeapSize
 extern InvalidateRect
 extern IsDialogMessageA
 extern LineTo
@@ -176,16 +171,52 @@ extern ValidateRect
 ;------- ESTRUCTURAS --------;
 ;----------------------------;
 
+struc WC
+
+	WC__cbSize		resb 4
+	WC__style		resb 4
+	WC__lpfnWndProc		resb 8
+	WC__cbClsExtra 		resb 4
+	WC__cbWndExtra		resb 4
+	WC__hInstance		resb 8
+	WC__hIcon		resb 8
+	WC__hCursor		resb 8
+	WC__hbrBackground	resb 8
+	WC__lpszMenuName		resb 8
+	WC__lpszClassName	resb 8
+	WC__hIconSm		resb 8
+
+endstruc
+
+;----------------------------
+
+struc MSG
+
+	MSG__hwnd		resb 8
+	MSG__message		resb 4
+	MSG__Padding1		resb 4
+	MSG__wParam		resb 8
+	MSG__lParam		resb 8
+	MSG__time		resb 4
+	MSG__py.x		resb 4
+	MSG__pt.y		resb 4
+	MSG__Padding2		resb 4
+
+endstruc
+
+
+
+;----------------------------
 
 struc BITMAP
 
-	bmType resq 1
-	bmWidth resq 1
-	bmHeight resq 1
-	bmWidthBytes resq 1
-	bmPlanes resd 1
-	bmBitsPixel resd 1
-	bmBits resq 1
+	BITMAP__bmType resq 1
+	BITMAP__bmWidth resq 1
+	BITMAP__bmHeight resq 1
+	BITMAP__bmWidthBytes resq 1
+	BITMAP__bmPlanes resd 1
+	BITMAP__bmBitsPixel resd 1
+	BITMAP__bmBits resq 1
 
 endstruc
 
@@ -195,10 +226,10 @@ endstruc
 align 16
 struc VERTICE
 	
-	x resd 1    ; Estos cuatro son floats de precisión simple
-	y resd 1    	
-	z resd 1
-	w resd 1
+	VERTICE__x resd 1    ; Estos cuatro son floats de precisión simple
+	VERTICE__y resd 1    	
+	VERTICE__z resd 1
+	VERTICE__w resd 1
 
 endstruc  ; esto pesaría 16 bytes
 
@@ -208,10 +239,11 @@ endstruc  ; esto pesaría 16 bytes
 
 struc COLOR
 	
-	alfa    resb 1
-	rojo 	resb 1
-	verde 	resb 1
-	azul 	resb 1
+	COLOR__rojo 	resb 1
+	COLOR__verde 	resb 1
+	COLOR__azul 	resb 1
+	COLOR__alfa     resb 1
+
 
 endstruc  ; esto pesaría 4 bytes
 
@@ -220,11 +252,11 @@ endstruc  ; esto pesaría 4 bytes
 
 struc TRIANGULO
 	
-	vertice1 resb VERTICE_size
-	vertice2 resb VERTICE_size
-	vertice3 resb VERTICE_size
-	color resb COLOR_size
-	padding resb 12  	;esto es para que estén alineados a 16 bytes
+	TRIANGULO__vertice1 	resb VERTICE_size
+	TRIANGULO__vertice2 	resb VERTICE_size
+	TRIANGULO__vertice3 	resb VERTICE_size
+	TRIANGULO__color 	resb COLOR_size
+	TRIANGULO__padding 	resb 12  	;esto es para que estén alineados a 16 bytes
 
 endstruc  ; esto pesaría 64 bytes, y siempre debe ocupar un múltiplo de 16
 
@@ -233,11 +265,11 @@ endstruc  ; esto pesaría 64 bytes, y siempre debe ocupar un múltiplo de 16
 
 struc PROYECCION
 
-	alto_pantalla resd 1
-	ancho_pantalla resd 1
-	angulo_FOV resd 1
-	z_far resd 1
-	z_near resd 1
+	PROYECCION__alto_pantalla resd 1
+	PROYECCION__ancho_pantalla resd 1
+	PROYECCION__angulo_FOV resd 1
+	PROYECCION__z_far resd 1
+	PROYECCION__z_near resd 1
 
 endstruc  ; pesa 20 bytes
 
@@ -246,22 +278,22 @@ endstruc  ; pesa 20 bytes
 
 struc MATRIZ
 	
-	matriz_11 resd 1
-	matriz_21 resd 1
-	matriz_31 resd 1
-	matriz_41 resd 1
-	matriz_12 resd 1
-	matriz_22 resd 1
-	matriz_32 resd 1
-	matriz_42 resd 1
-	matriz_13 resd 1
-	matriz_23 resd 1
-	matriz_33 resd 1
-	matriz_43 resd 1
-	matriz_14 resd 1
-	matriz_24 resd 1
-	matriz_34 resd 1
-	matriz_44 resd 1
+	MATRIZ__11 resd 1
+	MATRIZ__21 resd 1
+	MATRIZ__31 resd 1
+	MATRIZ__41 resd 1
+	MATRIZ__12 resd 1
+	MATRIZ__22 resd 1
+	MATRIZ__32 resd 1
+	MATRIZ__42 resd 1
+	MATRIZ__13 resd 1
+	MATRIZ__23 resd 1
+	MATRIZ__33 resd 1
+	MATRIZ__43 resd 1
+	MATRIZ__14 resd 1
+	MATRIZ__24 resd 1
+	MATRIZ__34 resd 1
+	MATRIZ__44 resd 1
 
 endstruc  ; esto pesa 64, y está como column-major
 
@@ -270,10 +302,10 @@ endstruc  ; esto pesa 64, y está como column-major
 
 struc VECTOR4
 
-	vector_1 resd 1
-	vector_2 resd 1
-	vector_3 resd 1
-	vector_4 resd 1
+	VECTOR4__1 resd 1
+	VECTOR4__2 resd 1
+	VECTOR4__3 resd 1
+	VECTOR4__4 resd 1
 
 endstruc
 
@@ -281,21 +313,70 @@ endstruc
 ;----------------------------
 
 struc TIMER
-	frecuencia resq 1
-	tiempo_inicial resq 1
-	tiempo_final resq 1
-	tiempo_transcurrido resq 1
+
+	TIMER__frecuencia resq 1
+	TIMER__tiempo_inicial resq 1
+	TIMER__tiempo_final resq 1
+	TIMER__tiempo_transcurrido resq 1
+
 endstruc
 
 ;----------------------------
 
 struc PUNTOS
 
-	x_1 resd 1
-	y_1 resd 1
-	x_2 resd 1
-	y_2 resd 1
-	x_3 resd 1
-	y_3 resd 1
+	PUNTOS__x_1 resd 1
+	PUNTOS__y_1 resd 1
+	PUNTOS__x_2 resd 1
+	PUNTOS__y_2 resd 1
+	PUNTOS__x_3 resd 1
+	PUNTOS__y_3 resd 1
 
 endstruc
+
+
+;----------------------------
+
+struc OBJETO_3D
+
+	OBJETO_3D__handle_memoria		resq 1	
+	OBJETO_3D__activado			resb 1
+	OBJETO_3D__color_por_defecto		resq 1   ; Pensar esto porque la estructura triangulo ya tiene color
+						 	 ;  y es mejor que cada triangulo tenga el suyo y hacer efectos copados... o no 
+	OBJETO_3D__puntero_triangulos		resq 1   
+	OBJETO_3D__cantidad_triangulos		resq 1
+	OBJETO_3D__posicion_x			resd 1
+	OBJETO_3D__posicion_y			resd 1
+	OBJETO_3D__posicion_z			resd 1
+	OBJETO_3D__velocidad_x			resd 1   ; fijarse porque puede que haya puesto 64 bits
+	OBJETO_3D__velocidad_y			resd 1
+	OBJETO_3D__velocidad_z			resd 1
+	OBJETO_3D__angulo_x			resd 1
+	OBJETO_3D__angulo_y			resd 1
+	OBJETO_3D__angulo_z			resd 1
+	OBJETO_3D__velocidad_angular_x		resd 1   ; fijarse porque puede que haya puesto 64 bits.
+	OBJETO_3D__velocidad_angular_y		resd 1
+	OBJETO_3D__velocidad_angular_z		resd 1
+
+	; podemos meter acá los colisionadores, pero ver bien eso porque dependerán de cada objeto y creo que podríamos
+	; utilizar cubos o esferas hechas con el blender mismo. Verlo bien, pero más adelante
+	; Lo que es importante acá es usar muy fielmente el _size
+
+endstruc	
+
+;-----------------------------
+
+
+struc RASTERIZACION
+ 
+	RASTERIZACION__handle_del_heap		resq 1
+	RASTERIZACION__espacio_maximo_requerido	resd 1
+	RASTERIZACION__puntero_inicio		resq 1
+	RASTERIZACION__puntero_escritura 	resq 1   ; el puntero que uso para escribir los triangulos de todos los objetos
+	RASTERIZACION__cantidad 		resq 1 
+
+endstruc
+
+
+;----------------------------
+

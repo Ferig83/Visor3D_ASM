@@ -72,10 +72,6 @@ WndProc:
   	cmp   qword [uMsg], WM_PAINT                  
 	je    WMPAINT
 
-	;El GDI pide borrar el fondo?
-	
-	cmp qword [uMsg], WM_ERASEBKGND
-	je WM_ERASEBKGND
 
 	;El usuario cliqueó en algún lugar?
 
@@ -86,6 +82,11 @@ WndProc:
 
 	cmp   qword [uMsg], WM_KEYDOWN
 	je    WMKEYDOWN
+
+	;verificar si es mejor esta:
+		
+;;;	cmp qword [uMsg], WM_INPUT
+;;;	je WMINPUT
 
 
 
@@ -123,52 +124,52 @@ WMKEYDOWN:
 
 	; Cargo el valor falso/default en st0 (no cambia nada) y el valor verdadero en st1 (suma valor)
 
-	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [vector_camara_posicion+VECTOR4__3]
 	fld dword [factor_movimiento_z]
 	faddp	
-	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [vector_camara_posicion+VECTOR4__3]
 	
 	
 	; Comparo si es cierto que tocó la W. Si es verdadero, muevo el valor verdadero a st0.
 
 	cmp cx, VK_W
 	fcmove st0, st1
-	fstp dword [vector_camara_posicion+VECTOR4+vector_3]
+	fstp dword [vector_camara_posicion+VECTOR4__3]
 	fstp st0
 
 	; Repito para todas las letras. 
 
 	; S (va atrás)
 
-	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [vector_camara_posicion+VECTOR4__3]
 	fld dword [factor_movimiento_z]
 	fsubp	
-	fld dword [vector_camara_posicion+VECTOR4+vector_3]
+	fld dword [vector_camara_posicion+VECTOR4__3]
 	cmp cx, VK_S
 	fcmove st0, st1
-	fstp dword [vector_camara_posicion+VECTOR4+vector_3]
+	fstp dword [vector_camara_posicion+VECTOR4__3]
 	fstp st0
 
 	; A (derecha)
 
-	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [vector_camara_posicion+VECTOR4__1]
 	fld dword [factor_movimiento_x]
 	faddp	
-	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [vector_camara_posicion+VECTOR4__1]
 	cmp cx, VK_A
 	fcmove st0, st1
-	fstp dword [vector_camara_posicion+VECTOR4+vector_1]
+	fstp dword [vector_camara_posicion+VECTOR4__1]
 	fstp st0
 
 	; D (izquierda)
 
-	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [vector_camara_posicion+VECTOR4__1]
 	fld dword [factor_movimiento_x]
 	fsubp	
-	fld dword [vector_camara_posicion+VECTOR4+vector_1]
+	fld dword [vector_camara_posicion+VECTOR4__1]
 	cmp cx, VK_D
 	fcmove st0, st1
-	fstp dword [vector_camara_posicion+VECTOR4+vector_1]
+	fstp dword [vector_camara_posicion+VECTOR4__1]
 	fstp st0
 
 
@@ -184,12 +185,6 @@ WMKEYDOWN:
 
 
 ;--------------------------------------------------------------------
-WM_ERASEBKGND:
-
-	xor rax,rax
-	; Esto lo hago así porque yo me ocupo de borrar todo con FillRect
-	
-	jmp Return.WM_Processed
 	
 WMCLOSE:
 
@@ -227,25 +222,13 @@ WMCOMMAND:
 WMCREATE:
 
 
-
-
-;_______Ahora quedaría inicializar la pantalla y crear el timer
-	
-
-;;;;;;;;Este es el DC pero mepa que hay que usar un CompatibleDC o algo así...
-
-	; OJO! habilitar el de destroy si habilitás esto
-	;mov rcx, [hWnd]
-	;mov rdx, 0  			
-	;mov r8, 0x00000020; | 0x00000002		; DCX_PARENTCLIP | DCX_CACHE
-	;call GetDCEx
-	;mov [DC_pantalla], rax
-	
-
-	call Actualizar
-
 	xor rax, rax
 
+	;ATENCION: esto lo puse porque si no creo el heap primero y allocateo, corre el wmpaint antes de
+	; Actualizar_Todo en el main y se cuelga. Por eso es importante crear el heap antes al menos.
+	; Lo que debería hacer es crearlo acá o en el main, sin necesidad de llamar a Actualizar_Todo
+
+	call Actualizar_Todo 
 
  	jmp   Return.WM_Processed
 
@@ -261,7 +244,18 @@ WMDESTROY:
 
 	;Borro la memoria asignada (no se si es necesario el HeapFree antes o si cambia algo)
 
-	mov rcx, [handle_heap_objeto3d]
+
+;;;TODO;;;; tengo que idear algo que me cuente los objetos en memoria y me los vaya
+;;;;;;;	    borrando 
+
+	mov rcx, [cubo+OBJETO_3D__handle_memoria]
+	call HeapDestroy
+
+	mov rcx, [cilindro+OBJETO_3D__handle_memoria]
+	call HeapDestroy
+
+
+	mov rcx, [array_rasterizacion+ARRAY_DINAMICO__handle_del_heap]
 	call HeapDestroy
 
 	
@@ -273,16 +267,6 @@ WMDESTROY:
 	mov rcx, [hBitmap]
 	call DeleteObject
 
-	mov rcx, 1
-	call KillTimer
-
-
-;;;;;;;;;;;;;;;;;;;;TEST;;;;;;;;;;;;;;;;;
-	;mov rcx, [hWnd]
-	;mov rdx, [DC_pantalla]
-	;call ReleaseDC
-
-
  	xor   ecx, ecx
  	call  PostQuitMessage
  	jmp   Return.WM_Processed
@@ -291,9 +275,9 @@ WMDESTROY:
 
 WMPAINT:
 
-
+	
 	mov rcx, [hWnd]
-	mov rdx, [puntero_objeto3d_mundo]
+	mov rdx, [array_rasterizacion+ARRAY_DINAMICO__puntero_del_heap]
 	call Pintar_WMPAINT
 	xor rax,rax
 

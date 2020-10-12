@@ -3,12 +3,14 @@
 
 global Start
 
+%include 'panelcontrol.asm'
 %include 'encabezado.asm'
 %include 'winproc.asm'
 %include 'funciones.asm'
 %include 'actualizar.asm'
 %include 'pintar.asm'
 %include 'matrices.asm'
+%include 'arraydinamico.asm'
 
 ;--- DATA -----------------------------------------------------------
 
@@ -19,13 +21,23 @@ MitadAltoPantalla  dd FSP_MITAD_ALTO_PANTALLA    ; 384 en float 32
 
 rectangulo_pantalla dd 0,0,ANCHO_PANTALLA,ALTO_PANTALLA
 
-BackgroundColour dd 0xFFFFFF      		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
+BackgroundColour dd 0x00FFFFFF		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
+click_izquierdo  dd 0
+
+
+
+
+;--- CADENAS GENERALES --
+
 WindowName 	 db "Virtual Rigantity", 0                     ; Título de la ventana (nombre de la app)
 ClassName        db "Ventana", 0	                       ; Nombre de la clase de la ventana (identificador choto)
 ExitText         db "¿Está seguro de que quiere salir?", 0   ; Texto del mensaje de Salir 
 
-click_izquierdo  dd 0
+;--- CADENAS DE RUTA DE ARCHIVOS --
 
+ruta_cubo	db "cubo.3d" ,0
+ruta_cilindro   db "cilindro.3d",0
+ruta_esfera	db "esfera.3d",0
 
 ; -- CADENAS DE ERRORES --
 
@@ -36,14 +48,8 @@ error4 db 'Fallo en el read file de destino',0
 titulo_error db 'Error',0
 
 
-; -- ANGULOS DE ROTACION --
+; -- MOVIMIENTO  --
 
-tita_rotacion_x dd 0.0
-tita_rotacion_y dd 0.0
-tita_rotacion_z dd 0.0
-
-factor_velocidad_rotacion_x dd 2.0
-factor_velocidad_rotacion_z dd 0.0;4.0
 factor_conversion_tiempo dd 1.0		; La verdad si el factor es 1, la multiplicación es media al dope. Pero dejarlo por si
 					; tengo que cambiarlo.
 factor_movimiento_z dd 0.1
@@ -59,6 +65,17 @@ factor_movimiento_x dd 0.1
  	vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
 	
 	; REGLA DE LA MANO DERECHA, OJO (se cumple la misma regla para la transformación de la figura??)
+
+
+configuracion_proyeccion istruc PROYECCION
+	
+	at PROYECCION__alto_pantalla, dd ALTO_PANTALLA
+	at PROYECCION__ancho_pantalla, dd ANCHO_PANTALLA
+	at PROYECCION__angulo_FOV, dd ANGULO_FOV
+	at PROYECCION__z_far, dd ZFAR
+	at PROYECCION__z_near, dd ZNEAR
+
+iend
  	
 
 ;--- BSS --------------------------------------------------------
@@ -70,7 +87,11 @@ section .bss nobits alloc noexec write align=16
 ; cadena_impresion resb 20
 
 
- temporizador resb TIMER_size
+ temporizador 			resb TIMER_size
+ cubo 				resb OBJETO_3D_size
+ cilindro 			resb OBJETO_3D_size
+ esfera 			resb OBJETO_3D_size
+ array_rasterizacion		resb ARRAY_DINAMICO_size
 
  prueba resq 1  ; para meter los valores de los debug que haga
 
@@ -93,9 +114,6 @@ section .bss nobits alloc noexec write align=16
  ; que ni sé si vale la pena.
 
 
- ancho_pantalla_real resq 1
-
-
  vector_camara_X resb VECTOR4_size	
  vector_camara_Y resb VECTOR4_size	
  vector_camara_Z resb VECTOR4_size
@@ -105,19 +123,7 @@ section .bss nobits alloc noexec write align=16
 
 
  ;Respetar el alineamiento! no funcionarán las instrucciones de SIMD sino
-
- alignb 16 
- 	puntero_objeto3d_original	resq 1
-
- alignb 16
- 	puntero_objeto3d_mundo			resq 1  ; cambiar nombre a "puntero_objeto3d_a_rasterizar"
- 	cantidad_triangulos_objeto		resq 1
- 	cantidad_triangulos_a_rasterizar 	resq 1	
- 	handle_heap_objeto3d			resq 1
- 	handle_heap_commandline 		resq 1
- 	handle_archivo_objeto3d		resq 1	
- 	tamanio_archivo_objeto3d 		resq 1 
-
+ 	
  alignb 16
  	matriz_mundo 		resd 16
  	matriz_camara		resd 16
@@ -130,16 +136,16 @@ section .bss nobits alloc noexec write align=16
 
  matriz_A   		resd 16   ; esta creo que no la estoy usando
  matriz_B     		resd 16
- 	 
- triangulo_a_analizar 	resb TRIANGULO_size ; 64 bytes  
  
-
-
+ 
   
 ;--- TEXT -----------------------------------------------------------
+;--------------------------------------------------------------------
 
 
 section .text progbits alloc exec nowrite align=16
+
+
 
 Start:
 
@@ -160,80 +166,138 @@ Start:
 	call ExitProcess     
 
 
+;--------------------------------------------------------------------
+
 
 WinMain:
 
 
 	push rbp		
 	mov rbp, rsp            
-	sub rsp, 136+8*PARAMETROS+SHADOWSPACE+8  
-							;136 bytes para variables locales  (esto lo personalizo yo en mis tablas)
-							;64 (8*8) para parámetros (debe ser así porque quizas tienen un máximo de 8 argumentos de 64 bits cada 							; uno)
-							;32 del shadow space  (SIEMPRE usar esto, ya que es para guardar primeros cuatro argumentos: 8*4=32)
-							;8 para alinear
-							;Queda en multiplos de 16 para las funciones de la API 
+	sub rsp, 136+8*PARAMETROS+SHADOWSPACE+8   ;8 para alinear
+					
 
 
-%define wc                 RBP - 136            ; WNDCLASSEX, 80 bytes
-%define wc.cbSize          RBP - 136            ; 4 bytes. 
-%define wc.style           RBP - 132            ; 4 bytes
-%define wc.lpfnWndProc     RBP - 128            ; 8 bytes
-%define wc.cbClsExtra      RBP - 120            ; 4 bytes
-%define wc.cbWndExtra      RBP - 116            ; 4 bytes
-%define wc.hInstance       RBP - 112            ; 8 bytes
-%define wc.hIcon           RBP - 104            ; 8 bytes
-%define wc.hCursor         RBP - 96             ; 8 bytes
-%define wc.hbrBackground   RBP - 88             ; 8 bytes
-%define wc.lpszMenuName    RBP - 80             ; 8 bytes
-%define wc.lpszClassName   RBP - 72             ; 8 bytes
-%define wc.hIconSm         RBP - 64             ; 8 bytes 
 
-%define msg                RBP - 56             ; MSG, 48 bytes
-%define msg.hwnd           RBP - 56             ; 8 bytes
-%define msg.message        RBP - 48             ; 4 bytes
-%define msg.Padding1       RBP - 44             ; 4 bytes
-%define msg.wParam         RBP - 40             ; 8 bytes
-%define msg.lParam         RBP - 32             ; 8 bytes
-%define msg.time           RBP - 24             ; 4 bytes
-%define msg.py.x           RBP - 20             ; 4 bytes
-%define msg.pt.y           RBP - 16             ; 4 bytes
-%define msg.Padding2       RBP - 12             ; 4 bytes. padding
-
-%define hWnd               RBP - 8              ; 8 bytes
+%define wc			rbp - 136	; 80 bytes
+%define msg			rbp - 56	; 48 bytes
+%define hWnd        	        rbp - 8              ; 8 bytes
 
 
-;--- Fin tabla ---
 
 
-;_______Primero cargo los datos del archivo .3D y preparo el temporizador
 
-	lea rcx, [temporizador+frecuencia]
+;_______Preparo el temporizador para el framerate
+
+	lea rcx, [temporizador+TIMER__frecuencia]
 	call QueryPerformanceFrequency  ; esto lo necesito para setearlo
+
+;_______Cargo los parámetros de nuestros objetos
+;	No pasarlos a estructuras definidas globalmente porque tampoco es 
+;	mi intención que los objetos sean globales. A futuro cambiaré eso
+
+
+	; Objeto "CUBO"
+
+	mov eax, 0
+	mov [cubo+OBJETO_3D__angulo_x], eax
+	mov eax, 0x40000000
+	mov [cubo+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [cubo+OBJETO_3D__angulo_z], eax
+	mov eax, 0x40800000
+	mov [cubo+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0xc0800000 ; -4
+	mov [cubo+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [cubo+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x41200000 ; 10
+	mov [cubo+OBJETO_3D__posicion_z], eax	
+
+
+	mov eax, 0x00FF0000 ; azul
+	mov [cubo+OBJETO_3D__color_por_defecto], eax
+
+
+	mov rcx, ruta_cubo
+	mov rdx, cubo
 	call Cargar_Datos_3D
 
-;_______Preparo algunas bellas matrices
+
+	; Objeto "CILINDRO"
+
+	mov eax, 0
+	mov [cilindro+OBJETO_3D__angulo_x], eax
+	mov eax, 0x40800000
+	mov [cilindro+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [cilindro+OBJETO_3D__angulo_z], eax
+	mov eax, 0x40000000
+	mov [cilindro+OBJETO_3D__velocidad_angular_z], eax
+	
+	mov eax, 0x40800000  ; 4 
+	mov [cilindro+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [cilindro+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x41200000 ; 10
+	mov [cilindro+OBJETO_3D__posicion_z], eax
+	
+	mov eax, 0x0000FF00 ; verde
+	mov [cilindro+OBJETO_3D__color_por_defecto], eax	
+
+	mov rcx, ruta_cilindro
+	mov rdx, cilindro
+	call Cargar_Datos_3D
+
+
+	; Objeto "ESFERA"
+
+	mov eax, 0
+	mov [esfera+OBJETO_3D__angulo_x], eax
+	mov eax, 0x40000000
+	mov [esfera+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [esfera+OBJETO_3D__angulo_z], eax
+	mov eax, 0x40800000
+	mov [esfera+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [esfera+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [esfera+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x41200000 ; 10
+	mov [esfera+OBJETO_3D__posicion_z], eax	
+
+
+	mov eax, 0x000000FF ; rojo  (ERROR SI PONGO 000000FF...sale negro!)
+	mov [esfera+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_esfera
+	mov rdx, esfera
+	call Cargar_Datos_3D
 
 	
+
+
+
+;_______Preparo algunas bellas matrices y el array de rasterización
+
 	mov rcx, matriz_mundo	
 	call Inicializar_Matriz_Identidad
 
-;TODO   ; ATENCION:
-	; Esta matriz de abajo está buggeada.
-	; o es un error de pila o algo pasa
-	; Estoy armando la matriz sin argumentos, con
-	; los valores estandar.
-	;mov rcx, matriz_proyeccion
-	;mov edx, 768
-	;mov r8d, 1366
-	;mov r9d, 0x3fc90fdb ; pi/2
-	;mov   qword [RSP + 4 * 8], 0x447a0000        
-	;mov   qword [RSP + 5 * 8], 0x3dcccccd
-	;call Inicializar_Matriz_Proyeccion
-	
-	;voy a llamar a esta matriz hardcodeada, con los argumentos de arriba
+	mov rcx, array_rasterizacion
+	mov rdx, TRIANGULO_size
+	call Crear_Array_Dinamico
+
+
+;_______Configuro la proyección inicializando la estructura pertinente para inicializar la matriz.
+;	Salvo que haya un cambio, podría descartar la estructura, pero es posible que lo haya
+;	si se modifica el tamaño de la ventana (no está habilitado eso aún pero podría estarlo a futuro).
 	
 	mov rcx, matriz_proyeccion
-	call Inicializar_Matriz_Proyeccion_FAKE
+	mov rdx, configuracion_proyeccion
+	call Inicializar_Matriz_Proyeccion
 
 
 ;_______Creo un brush para el color de fondo
@@ -246,16 +310,16 @@ WinMain:
 ;_______Procedemos a registrar y crear la ventana
 
 
- 	mov   dword [wc.cbSize], 80  ; simplemente es el tamaño nomás de la estructura                  
- 	mov   dword [wc.style], 0 
+ 	mov   dword [wc+WC__cbSize], 80  ; simplemente es el tamaño nomás de la estructura                  
+ 	mov   dword [wc+WC__style], 0 
  	lea   rax, [REL WndProc]
- 	mov   qword [wc.lpfnWndProc], rax              
- 	mov   dword [wc.cbClsExtra], NULL              
- 	mov   dword [wc.cbWndExtra], NULL              
+ 	mov   qword [wc+WC__lpfnWndProc], rax              
+ 	mov   dword [wc+WC__cbClsExtra], NULL              
+ 	mov   dword [wc+WC__cbWndExtra], NULL              
 
 
  	mov rax, qword [REL hInstance]
- 	mov   qword [wc.hInstance], rax              
+ 	mov   qword [wc+WC__hInstance], rax              
 
  	xor   ecx, ecx
  	mov   edx, IDI_APPLICATION
@@ -264,32 +328,32 @@ WinMain:
  	mov   qword [RSP + 4 * 8], NULL        
  	mov   qword [RSP + 5 * 8], LR_SHARED
  	call  LoadImageA                               ; Icono grande
- 	mov   qword [wc.hIcon], rax                    
+ 	mov   qword [wc+WC+WC__hIcon], rax                    
 
 
- 	xor   ECX, ECX
- 	mov   EDX, IDC_ARROW
- 	mov   R8D, IMAGE_CURSOR
- 	xor   R9D, R9D
+ 	xor   ecx, ecx
+ 	mov   edx, IDC_ARROW
+ 	mov   r8d, IMAGE_CURSOR
+ 	xor   r9d, r9d
  	mov   qword [RSP + 4 * 8], NULL
  	mov   qword [RSP + 5 * 8], LR_SHARED
  	call  LoadImageA                               ; Cursor
- 	mov   qword [wc.hCursor], RAX                 
+ 	mov   qword [wc+WC__hCursor], rax                 
 
- 	mov   RAX, qword [REL BackgroundBrush]
- 	mov   qword [wc.hbrBackground], RAX           
- 	mov   qword [wc.lpszMenuName], NULL           
- 	lea   RAX, [REL ClassName]
- 	mov   qword [wc.lpszClassName], RAX            
+ 	mov   rax, qword [REL BackgroundBrush]
+ 	mov   qword [wc+WC__hbrBackground], rax           
+ 	mov   qword [wc+WC__lpszMenuName], NULL           
+ 	lea   rax, [REL ClassName]
+ 	mov   qword [wc+WC__lpszClassName], rax            
 
- 	xor   ECX, ECX
- 	mov   EDX, IDI_APPLICATION
- 	mov   R8D, IMAGE_ICON
- 	xor   R9D, R9D
+ 	xor   ecx, ecx
+ 	mov   edx, IDI_APPLICATION
+ 	mov   r8d, IMAGE_ICON
+ 	xor   r9d, r9d
  	mov   qword [RSP + 4 * 8], NULL
  	mov   qword [RSP + 5 * 8], LR_SHARED
  	call  LoadImageA                               ; Icono chiquito
- 	mov   qword [wc.hIconSm], RAX                 
+ 	mov   qword [wc+WC__hIconSm], rax                 
 
 
 ;_______Listo, ahora puedo registrar la ventana
@@ -303,10 +367,10 @@ WinMain:
 ;	anterior (no estaba mal!)
 
 
- 	mov   ECX, WS_EX_COMPOSITED | 0x00040000  ; Composited evita el flickering y el otro es para que esté por encima del taskbar
- 	lea   RDX, [REL ClassName]
- 	lea   R8, [REL WindowName]
- 	mov   R9D, 0x02000000 | WS_POPUP ; con la del clipchildren           antes, WS_OVERLAPPEDWINDOW 
+ 	mov   ecx, WS_EX_COMPOSITED | 0x00040000  ; Composited evita el flickering y el otro es para que esté por encima del taskbar
+ 	lea   rdx, [REL ClassName]
+ 	lea   r8, [REL WindowName]
+ 	mov   r9d, 0x02000000 | WS_POPUP ; con la del clipchildren           antes, WS_OVERLAPPEDWINDOW 
 
  	mov   dword [RSP + 4 * 8], 0            	 ; origen x
  	mov   dword [RSP + 5 * 8], 0		 	 ; origen y
@@ -318,16 +382,14 @@ WinMain:
  	mov   qword [RSP + 10 * 8], rax
  	mov   qword [RSP + 11 * 8], NULL
  	call  CreateWindowExA
- 	mov   qword [hWnd], RAX                        
+ 	mov   qword [hWnd], rax                        
 
- 	mov   RCX, qword [hWnd]                        
- 	mov   EDX, SW_SHOWNORMAL
+ 	mov   rcx, qword [hWnd]                        
+ 	mov   edx, SW_SHOWNORMAL
  	call  ShowWindow
 
- 	mov   RCX, qword [hWnd]                        
+ 	mov   rcx, qword [hWnd]                        
  	call  UpdateWindow
-
-
 
 
 .MessageLoop:
@@ -349,7 +411,7 @@ WinMain:
  	je    .dibujar
 
 	xor rax,rax
-	mov eax, [msg.message]
+	mov eax, [msg+MSG__message]
 	cmp eax, 0x0012 ; WM_QUIT
 	je .terminar
 
@@ -378,34 +440,34 @@ WinMain:
 
 .dibujar:
 
-	lea rcx, [temporizador+tiempo_final]
+	lea rcx, [temporizador+TIMER__tiempo_final]
 	call QueryPerformanceCounter
 
-	fild dword [temporizador+tiempo_final]     ; carga dword por doble precisión y/o por memoria?
-	fild dword [temporizador+tiempo_inicial]
+	fild dword [temporizador+TIMER__tiempo_final]     ; carga dword por doble precisión y/o por memoria?
+	fild dword [temporizador+TIMER__tiempo_inicial]
 	fsubp
 	fld dword [factor_conversion_tiempo]
 	fmulp 
-	fild dword [temporizador+frecuencia]
+	fild dword [temporizador+TIMER__frecuencia]
 	fdivp
-	fstp dword [temporizador+tiempo_transcurrido]
+	fstp dword [temporizador+TIMER__tiempo_transcurrido]
 		
 	
 	
 
 
-;	mov rcx, [temporizador+tiempo_inicial]
-;	mov rax, [temporizador+tiempo_final]
+;	mov rcx, [temporizador+TIMER__tiempo_inicial]
+;	mov rax, [temporizador+TIMER__tiempo_final]
 ;	sub rax, rcx
 ;	xor rdx, rdx
 ;	mov rcx, 1000000 
 ;	mul rcx
 ;	xor rdx, rdx
-;	mov rcx, [temporizador+frecuencia]
+;	mov rcx, [temporizador+TIMER__frecuencia]
 ;	div rcx
-;	mov [temporizador+tiempo_transcurrido], rax
+;	mov [temporizador+TIMER__tiempo_transcurrido], rax
 
-	lea rcx, [temporizador+tiempo_inicial]
+	lea rcx, [temporizador+TIMER__tiempo_inicial]
 	call QueryPerformanceCounter
 
 
@@ -415,7 +477,7 @@ WinMain:
 	;call ValidateRect 
 
 
-	call Actualizar
+	call Actualizar_Todo
 
 
 	mov rcx, [hWnd]
@@ -438,7 +500,7 @@ WinMain:
 .terminar:
 
  	xor   eax, eax
- 	mov   rsp, rbp                                 ; Desarmo la pila que hice
+ 	mov   rsp, rbp                                 
 
  	pop   rbp
  	ret

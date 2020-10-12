@@ -60,7 +60,7 @@ Pintar:
 	call Pintar_Triangulo	      
 	
 	inc r13
-	cmp qword r13, [cantidad_triangulos_a_rasterizar]
+	cmp dword r13d, [array_rasterizacion+ARRAY_DINAMICO__cantidad_elementos]
 	jb .loop1
 
 
@@ -174,7 +174,7 @@ Pintar_WMPAINT:
 	call Pintar_Triangulo
 
 	inc r13
-	cmp qword r13, [cantidad_triangulos_a_rasterizar]
+	cmp dword r13d, [array_rasterizacion+ARRAY_DINAMICO__cantidad_elementos]
 	jb .loop1
 
 

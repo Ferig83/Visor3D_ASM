@@ -3,229 +3,6 @@
 ;--------------------------------------------------------------------
 
 
-Rescatar_Argumentos:       ; No estoy cumpliendo con la convención de registros volátiles. Pushearlos 
-
-
-	
-	%define cantidad_argumentos rbp - 16  ; 8 bytes. No hace falta tanto pero como tengo que alinear la pila...
-	%define primer_argumento rbp - 8 	; 8 bytes 
-
-	push rbx
-
-	push rbp
-	mov rbp, rsp
-	sub rsp, SHADOWSPACE + 16
-
-;_______Primero recupero la cadena con el command line
-
-	Call GetCommandLineA	
-	
-
-;_______Luego voy al final de todo, y mientras viajo, cuento cuántos argumentos hay y guardo en memoria el offset
-;	del primer argumento. Cuando me topo con un espacio, voy viajando a través de todos los espacios consecutivos si los
-;	hay hasta llegar al que no es espacio y sumo 1 al contador. Cuento para ver si hay algun argumento, porque si no hay, corto.
-
-	mov rbx, 0  ; este es el contador de argumentos
-
-.loop1:
-
-	; Verifico si se cerró la cadena, en ese caso termina el loop1.
-
-	cmp byte [rax], 0
-	je .fin_loop1
-
-	; Comparo si hay comillas, porque si las hay voy a tener que ignorar
-	; todos los espacios que vea dentro.
-
-	cmp byte [rax], 34;"  ; Compara si hay una comilla.
-	je .loop1_hay_comillas
-	jmp .loop1_sin_comillas
-
-.loop1_hay_comillas:
-
-	; Busco las comillas de cierre. Si hay una sola debo cortar
-	; porque el argumento está mal escrito.
-
-	inc rax
-	
-	; Si lo siguiente es verdadero es porque hay una sola comilla. Mal argumento, salto a error1.
-
-	cmp byte [rax], 0   
-	je .error1 
-
-	; Verifico la comilla de cierre	
-
-	cmp byte [rax], 34 ;"  	
-	jne .loop1_hay_comillas
-
-	; Si la encontramos, volvemos al bucle para buscar más espacios o argumentos.
-
-	inc rax
-	jmp .loop1
-	
-.loop1_sin_comillas:
-
-	cmp byte [rax], 32  ; espacio
-	je .loop1_recorrer_espacios
-	inc rax
-	jmp .loop1
-	
-.loop1_recorrer_espacios:
-
-	inc rax
-	cmp byte [rax], 32
-	je .loop1_recorrer_espacios
-	cmp byte [rax], 0
-	je .loop1
-
-	inc rbx
-	cmp rbx, 1  
-	je .loop1_recordar_primer_argumento
-	jmp .loop1
-
-.loop1_recordar_primer_argumento:
-	
-	mov [primer_argumento], rax	
-	jmp .loop1
-		
-
-.fin_loop1:
-
-
-
-
-	mov [cantidad_argumentos], rbx
-
-	;Si no hay argumentos tiro error. Necesito en este caso.
-
-	cmp rbx, 0
-	je .error2
-
-;_______Ahora me posiciono en el primer argumento y cuento cuántos caracteres tiene. Si empieza en comillas
-;	busco la comilla de cierre (tiene que estar porque ya fue verificada). No lo hago esto arriba porque
-;	iba a complejizar más el código. 
-
-
-	xor rbx,rbx   ; Ahora rbx es mi contador de caracteres dentro del primer argumento
-
-
-	mov rax, [primer_argumento]
-
-
-.loop2:
-
-	cmp byte [rax], 0
-	je .fin_loop2
-
-	cmp byte [rax], 34 ;"          ;este podríamos quitarlo y ponerlo antes del loop2
-	je .loop2_hay_comillas
-	inc rax
-	inc rbx
-	cmp byte [rax], 32
-	je .fin_loop2
-
-	jmp .loop2	
-
-.loop2_hay_comillas:
-
-	inc rax
-	inc rbx
-	cmp byte [rax], 34 ;"
-	jne .loop2_hay_comillas
-	inc rax
-	jmp .loop2
-
-.fin_loop2:
-
-	inc rbx  ; esto para guardar el 0
-
-;_______Ahora agarro el primero argumento. No sé bien como se ingresaria con comillas y si eso importa
-;	pero voy a  asumir que si va con comillas funciona igual. Lo único que buscamos ahora es copiar
-;	el argumento en memoria y enchufarle un cero al final. No escribo la memoria del command line
-;	por si acaso. 
-
-
-	call GetProcessHeap
-	xor r8,r8
-	mov [handle_heap_commandline], rax  	; guardo el handle para luego borrar esto
-	mov rcx, rax
-	mov rdx, 8       			;esto hace que limpie la memoria allocateada (?
-	mov r8, rbx			 	;acá va la cantidad de bytes calculada arriba
-	call HeapAlloc
-
-;_______Ahora meto el argumento en memoria
-
-	;Guardo el puntero del heap para devolverlo luego
-
-	mov r8, rax
-	mov rdx, [primer_argumento]
-	
-
-
-
-.loop3:
-
-	cmp byte [rdx], 34 ; "
-	je .loop3_hay_comillas
-
-	mov cl, [rdx]
-	mov [rax], cl
-	inc rax
-	inc rdx
-	dec rbx
-	cmp rbx, 1
-	ja .loop3
-	mov byte [rax], 0
-	jmp .fin_loop3
-
-.loop3_hay_comillas:
-	
-	inc rdx
-	dec rbx
-	jmp .loop3
-
-.fin_loop3:
-
-	;Listo el llopo. Enviamos el puntero a rax
-	
-	mov rax, r8
-
-
-	mov rsp, rbp
-	pop rbp
-
-	
-%undef cantidad_argumentos  
-%undef primer_argumento
-
-	pop rbx
-	ret
-	
-
-.error1:
-
-	mov rax, -1
-	call Imprimir_RAX
-	mov rsp, rbp
-	pop rbp
-
-	pop rbx
-	ret
-	
-
-
-.error2:
-
-	mov rax, -1
-	call Imprimir_RAX
-	mov rsp, rbp
-	pop rbp
-
-	pop rbx
-	ret
-
-
-;--------------------------------------------------------------------
 
 Pintar_Triangulo_Wireframe:
 
@@ -243,20 +20,20 @@ Pintar_Triangulo_Wireframe:
 
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice1+x
+	add rax, TRIANGULO__vertice1+VERTICE__x
 	mov edx, [rax]             
 	mov rax, r15
-	add rax, TRIANGULO+vertice1+y 
+	add rax, TRIANGULO__vertice1+VERTICE__y 
 	mov r8d, [rax] 
 	xor r9,r9
 	call MoveToEx	
 
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice2+x
+	add rax, TRIANGULO__vertice2+VERTICE__x
 	mov edx, [rax]                         
 	mov rax, r15		
-	add rax, TRIANGULO+vertice2+y
+	add rax, TRIANGULO__vertice2+VERTICE__y
 	mov r8d, [rax]
 	call LineTo
 
@@ -264,20 +41,20 @@ Pintar_Triangulo_Wireframe:
 
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice2+x
+	add rax, TRIANGULO__vertice2+VERTICE__x
 	mov edx, [rax]             
 	mov rax, r15
-	add rax, TRIANGULO+vertice2+y 
+	add rax, TRIANGULO__vertice2+VERTICE__y 
 	mov r8d, [rax] 
 	xor r9,r9
 	call MoveToEx	
 
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice3+x
+	add rax, TRIANGULO__vertice3+VERTICE__x
 	mov edx, [rax]                         
 	mov rax, r15		
-	add rax, TRIANGULO+vertice3+y
+	add rax, TRIANGULO__vertice3+VERTICE__y
 	mov r8d, [rax]
 	call LineTo
 
@@ -285,20 +62,20 @@ Pintar_Triangulo_Wireframe:
 	
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice3+x
+	add rax, TRIANGULO__vertice3+VERTICE__x
 	mov edx, [rax]             
 	mov rax, r15
-	add rax, TRIANGULO+vertice3+y 
+	add rax, TRIANGULO__vertice3+VERTICE__y 
 	mov r8d, [rax] 
 	xor r9,r9
 	call MoveToEx	
 
 	mov rcx, rbx
 	mov rax, r15
-	add rax, TRIANGULO+vertice1+x
+	add rax, TRIANGULO__vertice1+VERTICE__x
 	mov edx, [rax]                         
 	mov rax, r15		
-	add rax, TRIANGULO+vertice1+y
+	add rax, TRIANGULO__vertice1+VERTICE__y
 	mov r8d, [rax]
 	call LineTo
 
@@ -335,7 +112,7 @@ Pintar_Triangulo:
 	xor rcx, rcx  
 	mov rcx, 0  ; estilo PS_SOLID, es decir, linea común
 	mov rdx, 0  ; ancho, 0 es un pixel solo
-	mov r8d, [r15+TRIANGULO+color]
+	mov r8d, [r15+TRIANGULO__color]
 	call CreatePen
 	mov [hPen_triangulo], rax
 	mov rcx, rbx
@@ -347,7 +124,7 @@ Pintar_Triangulo:
 	
 
 	xor rcx,rcx
-	mov ecx, [r15+TRIANGULO+color]
+	mov ecx, [r15+TRIANGULO__color]
 	call CreateSolidBrush
 	mov [hBrush_color_triangulo], rax
  
@@ -357,18 +134,18 @@ Pintar_Triangulo:
 	mov [hBrush_anterior] ,rax 
 	
 
-	mov eax, [r15+TRIANGULO+vertice1+x]
-	mov [puntos+PUNTOS+x_1], eax
-	mov eax, [r15+TRIANGULO+vertice1+y]
-	mov [puntos+PUNTOS+y_1], eax
-	mov eax, [r15+TRIANGULO+vertice2+x]
-	mov [puntos+PUNTOS+x_2], eax
-	mov eax, [r15+TRIANGULO+vertice2+y]
-	mov [puntos+PUNTOS+y_2], eax
-	mov eax, [r15+TRIANGULO+vertice3+x]
-	mov [puntos+PUNTOS+x_3], eax
-	mov eax, [r15+TRIANGULO+vertice3+y]
-	mov [puntos+PUNTOS+y_3], eax
+	mov eax, [r15+TRIANGULO__vertice1+VERTICE__x]
+	mov [puntos+PUNTOS__x_1], eax
+	mov eax, [r15+TRIANGULO__vertice1+VERTICE__y]
+	mov [puntos+PUNTOS__y_1], eax
+	mov eax, [r15+TRIANGULO__vertice2+VERTICE__x]
+	mov [puntos+PUNTOS__x_2], eax
+	mov eax, [r15+TRIANGULO__vertice2+VERTICE__y]
+	mov [puntos+PUNTOS__y_2], eax
+	mov eax, [r15+TRIANGULO__vertice3+VERTICE__x]
+	mov [puntos+PUNTOS__x_3], eax
+	mov eax, [r15+TRIANGULO__vertice3+VERTICE__y]
+	mov [puntos+PUNTOS__y_3], eax
 	
 	mov rcx, rbx
 	lea rdx, [puntos]
@@ -474,6 +251,14 @@ Imprimir_RAX:
 
 Cargar_Datos_3D:
 
+; Argumentos:  rcx : puntero al path de OBJETO_3D. 
+; 	       rdx : puntero a la estructura del objeto
+
+; Ojo!! pongo la cadena por separado, hay que pensar si incluir o no
+; el puntero a la cadena que contiene el path del archivo en la estructura OBJETO_3D,
+; porque no sé si es realmente necesario que lo tenga. De ser así, el cambio es muy simple 
+; así que tampoco pasa nada.
+
 
 %define GENERIC_READ 10000000000000000000000000000000b   ;si lo lee en little endian esto esta mal, deberia valer 1 nomas
 %define GENERIC_WRITE 01000000000000000000000000000000b   
@@ -482,18 +267,18 @@ Cargar_Datos_3D:
 %define CREATE_ALWAYS 2
 %define FILE_ATTRIBUTE_NORMAL 0x80
 
+%define tamanio_archivo_objeto3d	rbp - 24  ; 8 bytes
+%define handle_archivo_objeto3d		rbp - 16  ; 8 bytes
+%define puntero_estructura		rbp - 8   ; 8 bytes
 
 	push rbp
 	mov rbp, rsp
 	sub rsp, SHADOWSPACE + 32
 
-;_______Recupero el argumento del command line
-
-	call Rescatar_Argumentos
+	mov [puntero_estructura], rdx
 	
-;_______Abrimos el archivo
+;_______Abrimos el archivo. Ya tengo el path en rcx
 
-	mov rcx, rax
 	mov rdx, GENERIC_READ
 	mov r8, 0 ; NULL, evita que otros procesos operen el archivo (no hay "share")
 	mov r9, 0 ; NULL
@@ -508,13 +293,6 @@ Cargar_Datos_3D:
 	cmp rax, INVALID_HANDLE_VALUE
 	je .error1                              
 	mov [handle_archivo_objeto3d], rax		
-
-;;;;;;;;;;;;;; CHEQUEAR;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;	mov rcx, r13
-;	call HeapDestroy  ; El HeapFree también se me cuelga, por qué?
-;	xor r13,r13
-;	xor r14,r14
-;	xor r15,r15
 
 
 ;_______Recupero el tamaño del archivo ya que necesito asignar memoria
@@ -542,57 +320,37 @@ Cargar_Datos_3D:
 	mov eax, [tamanio_archivo_objeto3d]
 
 	xor rdx, rdx
-	mov rbx, 36      
+	mov rbx, 36  ; Tamaño en bytes de cada triángulo sin el color ni la coordenada w, que es lo que hay en el archivo    
 	div rbx
-	mov [cantidad_triangulos_objeto], rax
+	mov rbx, [puntero_estructura]
+	mov [rbx+OBJETO_3D__cantidad_triangulos], eax
 
-
-	
-	xor rbx,rbx
 	xor rax,rax
 	xor rdx,rdx
 
 ;_______Ahora sí, dada la cantidad de triángulos, sólo necesito multiplicarlos por el tamaño de cada triángulo de los míos
-;	y tengo el espacio para cuatro coordenadas más el color. Luego el resultado habrá que multiplicarlo
-;	por dos para obtener el inicial y el transformado. Así que multiplicamos por TRIANGULO_size*2 y listo.
+;	y tengo el espacio para cuatro coordenadas más el color. 
 
-	mov eax, [cantidad_triangulos_objeto]
-	mov ebx, (TRIANGULO_size*2) 		
+	mov eax, [rbx+OBJETO_3D__cantidad_triangulos]
+	xor rbx, rbx
+	mov ebx, TRIANGULO_size 		
 	mul ebx 
 	mov ebx, eax 				; el resultado es rdx:rax pero creo que ni hace falta tomar rdx
 
-
-	; IMPORTANTE!! la reserva de memoria de los triangulos a rasterizar va a estar separada, porque aun
-	; queda el temita del clipping, y de hasta ver si se rasterizan o no, y quizás de un millón se 
-	; rasterizan menos o al reves, de 50 se rasterizan más por el clipping.
-
-
-	call GetProcessHeap
-	mov [handle_heap_objeto3d], rax   	; me lo guarrrrdo
+	
+	mov rcx,0 ; sin flags
+	mov rdx, 0  ; sin espacio inicial inamovible
+	mov r8, 0 ;  Para que sea growable
+	call HeapCreate
+	
+	mov r8d, ebx			 	;acá va la cantidad de bytes
+	mov rbx, [puntero_estructura]
+	mov [rbx+OBJETO_3D__handle_memoria], rax   	; me lo guarrrrdo
 	mov rcx, rax
 	mov rdx, 8       			;esto hace que limpie la memoria allocateada (?
-	mov r8d, ebx			 	;acá va la cantidad de bytes
-	
 	call HeapAlloc
-	mov [puntero_objeto3d_original], rax
-
-;	ATENCION : Es posible que acá necesite sumar más, tipo objeto_3d_camara y objeto_3d_proyeccion, o algo así
-;	pero hacerlo sobre la marcha cuando se necesite.
-
-
-;_______Ahora calculo donde debería estar el proyectado
-
-	xor rbx, rbx
-	mov eax, [cantidad_triangulos_objeto]
-	mov ebx, TRIANGULO_size 				
-	mul ebx 
-	mov ebx, eax 				; el resultado es rdx:rax pero creo que ni hace falta tomar rdx
-	mov rax, [puntero_objeto3d_original]
-	add rax, rbx
-	mov [puntero_objeto3d_mundo], rax
-
-	;Si necesito agregar más necesito alojar más memoria (multiplicar TRIANGULO_size por 3 y no por 2, por ejemplo)
-	;y TRIANGULO_sizex0 seria el offset del primero, TRIANGULO_sizex1 el del segundo, TRIANGULO_sizex3 el del tercero y así
+	mov rcx, [puntero_estructura]
+	mov [rcx+OBJETO_3D__puntero_triangulos], rax
 
 
 ;_______Leemos el archivo, pero solo tenemos que leer los primero 12 bytes y luego agregar 4 bytes como = 0x3f800000
@@ -604,8 +362,9 @@ Cargar_Datos_3D:
 	push r13
 
 	xor rax,rax
-	mov r15, [cantidad_triangulos_objeto] 
-	mov r14, [puntero_objeto3d_original]
+	mov rbx, [puntero_estructura]
+	mov r15d, [rbx+OBJETO_3D__cantidad_triangulos] 
+	mov r14, [rbx+OBJETO_3D__puntero_triangulos]
 	xor r13,r13
 	
 
@@ -682,8 +441,9 @@ Cargar_Datos_3D:
 	
 ;Chanchada begins ----
 
-	add r14, 4 ; muevo dos bytes extra para ir al offset del color
-	mov edx, COLOR_FIGURA
+	add r14, 4 ; muevo cuatro bytes extra para ir al offset del color
+	mov rcx, [puntero_estructura]
+	mov edx, [rcx+OBJETO_3D__color_por_defecto]
 	mov [r14], edx
 	add r14, COLOR_size+12 ; muevo los dos bytes restantes + el padding para que quede alineado a 16 (requerido para SSE 4.1)	
 
@@ -756,6 +516,10 @@ Cargar_Datos_3D:
 	call MessageBoxA
 	call ExitProcess
 
+
+%undef tamanio_archivo_objeto3d	
+%undef handle_archivo_objeto3d	
+%undef puntero_estructura	
 
 
 
