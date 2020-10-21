@@ -3,6 +3,546 @@
 ;--------------------------------------------------------------------
 
 
+Limpiar_ZBuffer:
+
+	mov rax, ANCHO_PANTALLA
+	mov rdx, ALTO_PANTALLA
+	mul rdx
+	xor rdx,rdx
+	mov r8d, 0x7f800000
+	mov r9, [zbuffer]
+
+.loop_relleno:
+
+	mov [r9], r8d	
+
+	inc rdx
+	add r9, 4 ; tamaño del dword
+	
+	cmp rdx, rax
+	jb .loop_relleno
+
+	ret
+
+;------------------------------------------------------------------------------
+
+Rasterizar_Triangulo:
+
+
+	; rcx = el puntero del triangulo a rasterizar
+
+%define n_lado_b		rbp - 108	; 4 bytes
+%define n_lado_a		rbp - 104	; 4 bytes
+%define n_actual		rbp - 100	; 4 bytes
+%define t_step			rbp - 96	; 4 bytes
+%define parametro_t		rbp - 92	; 4 bytes
+%define dbx_step		rbp - 88 	; 4 bytes
+%define dax_step		rbp - 84	; 4 bytes
+%define delta_y2		rbp - 80	; 4 bytes
+%define delta_y1		rbp - 76	; 4 bytes
+%define delta_x2		rbp - 72	; 4 bytes
+%define delta_x1		rbp - 68 	; 4 bytes
+%define triangulo 		rbp - 64    	; 64 bytes ; TRIANGULO_size
+	
+	push rbp
+	mov rbp, rsp
+	sub rsp, SHADOWSPACE + 160
+	push rbx
+	push r11
+	push r15
+
+
+	mov r15, rcx
+
+
+;;;;;;;;;TEST;;;
+
+;	mov eax, 30
+;	mov [r15+TRIANGULO__vertice1+VERTICE__x], eax
+;	mov eax, 30
+;	mov [r15+TRIANGULO__vertice1+VERTICE__y], eax
+;	mov eax, 10
+;	mov [r15+TRIANGULO__vertice2+VERTICE__x], eax
+;	mov eax, 60
+;	mov [r15+TRIANGULO__vertice2+VERTICE__y], eax
+;	mov eax, 60
+;	mov [r15+TRIANGULO__vertice3+VERTICE__x], eax
+;	mov eax, 60
+;	mov [r15+TRIANGULO__vertice3+VERTICE__y], eax
+
+
+;;;;;;;;;;;;;;;;
+
+
+
+	
+;_______Agarro los tres puntos del triángulo y los ordeno por sus "y" de menor a mayor
+
+	; Muevo los "X" e "Y" completos en los registros de 64 y solo los "Y" en los de 32
+
+	lea rax, [r15+TRIANGULO__vertice1+VERTICE__x]
+	lea rbx, [r15+TRIANGULO__vertice2+VERTICE__x]
+	lea rdx, [r15+TRIANGULO__vertice3+VERTICE__x]
+
+	mov r8d, [r15+TRIANGULO__vertice1+VERTICE__y]
+	mov r9d, [r15+TRIANGULO__vertice2+VERTICE__y]
+	mov r10d, [r15+TRIANGULO__vertice3+VERTICE__y]
+
+
+
+
+
+
+;_______Meto el que más arriba está en rax, seguido de rbx y luego en rdx
+
+	; Ver si esto es lo más eficiente, porque quizás tanto evitar el "if" conlleva a un proceso más lento
+	
+	cmp r8d, r9d
+	cmova r11, rax          
+	cmova rax, rbx
+	cmova rbx, r11
+	cmova r11d, r8d          
+	cmova r8d, r9d
+	cmova r9d, r11d
+
+	cmp r8d, r10d
+	cmova r11, rax
+	cmova rax, rdx
+	cmova rdx, r11
+	cmova r11d, r8d          
+	cmova r8d, r10d
+	cmova r10d, r11d
+
+	cmp r9d, r10d
+	cmova r11, rbx
+	cmova rbx, rdx
+	cmova rdx, r11
+	cmova r11d, r9d          
+	cmova r9d, r10d
+	cmova r10d, r11d
+
+	
+	mov r10, [rax]
+	mov [triangulo+TRIANGULO__vertice1+VERTICE__x], r10
+	add rax, 8;VERTICE__z 
+	mov r10, [rax]
+	mov [triangulo+TRIANGULO__vertice1+VERTICE__z], r10
+
+	mov r10, [rbx]
+	mov [triangulo+TRIANGULO__vertice2+VERTICE__x], r10
+	add rbx, 8;VERTICE__z 
+	mov r10, [rbx]
+	mov [triangulo+TRIANGULO__vertice2+VERTICE__z], r10
+
+	mov r10, [rdx]
+	mov [triangulo+TRIANGULO__vertice3+VERTICE__x], r10
+	add rdx, 8;VERTICE__z 
+	mov r10, [rdx]
+	mov [triangulo+TRIANGULO__vertice3+VERTICE__z], r10
+
+
+
+
+
+
+
+
+
+
+	
+	; acá no estamos copiando el z, que más adelante va a ser importante, así 
+	; que mepa que todo esto va a tener que cambiar. De hecho, no estaría mal
+	; rotar los punteros de vertice1, vertico2 y vertice3 en vez de los valores
+
+
+;_______Ahora están todos ordenados, pero pueden haber iguales o ser todos diferentes
+;	así que verificamos.
+
+
+
+	; Listo? ahí va (?
+	
+
+	xor rax, rax
+	
+	mov eax, [triangulo+TRIANGULO__vertice2+VERTICE__y]
+	sub eax, [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	mov [delta_y1], eax
+
+	mov eax, [triangulo+TRIANGULO__vertice2+VERTICE__x]
+	sub eax, [triangulo+TRIANGULO__vertice1+VERTICE__x]
+	mov [delta_x1], eax
+
+
+	mov eax, [triangulo+TRIANGULO__vertice3+VERTICE__y]
+	sub eax, [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	mov [delta_y2], eax
+
+	mov eax, [triangulo+TRIANGULO__vertice3+VERTICE__x]
+	sub eax, [triangulo+TRIANGULO__vertice1+VERTICE__x]
+	mov [delta_x2], eax
+
+	xor rax, rax
+	mov [dax_step], eax
+	mov [dbx_step], eax
+	
+	
+;_______Ahora calculo los deltas
+
+
+	cmp dword [delta_y1], 0
+	je .delta_y1_es_cero_1
+	fild dword [delta_x1]
+	fild dword [delta_y1]
+	fabs
+	fdivp
+	fstp dword [dax_step]
+
+.delta_y1_es_cero_1:	
+
+
+	cmp dword [delta_y2], 0
+	je .delta_y2_es_cero_1
+	fild dword [delta_x2]
+	fild dword [delta_y2]
+	fabs
+	fdivp
+	fstp dword [dbx_step]
+
+.delta_y2_es_cero_1:	
+
+
+	; Ahora vienen los loops de relleno
+
+	cmp dword [delta_y1], 0
+	je .fin_cond_1
+
+	mov ebx, [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	mov eax, 0
+	mov [parametro_t], eax	
+	
+
+
+.loop1:
+	
+	mov [n_actual], ebx
+
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__x]
+	fild dword [n_actual]
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	fsubp
+	fld dword [dax_step]
+	fmulp
+	faddp
+	fistp dword [n_lado_a]
+
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__x]
+	fild dword [n_actual]
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	fsubp
+	fld dword [dbx_step]
+	fmulp
+	faddp
+	fistp dword [n_lado_b]
+
+		
+	; Si n_lado_a  es mayor que n_lado_b, los conmuto porque
+	; sino no voy a poder rasterizar de izquierda a derecha
+
+	mov r8d, [n_lado_a]
+	mov r9d, [n_lado_b]
+	cmp r8d, r9d
+	cmovg r10d, r9d          
+	cmovg r9d, r8d
+	cmovg r8d, r10d
+	mov [n_lado_a], r8d
+	mov [n_lado_b], r9d
+
+
+	; Si son iguales irse porque vas a tener una división por cero abajo. Quizás no esté mal que 
+	; de "infinito", pero por las dudas lo quito.
+
+
+;	cmp r8d, r9d
+;	je .fin_cond_1
+	
+	
+	; Hago el recíproco de la pendiente
+
+	fld1
+	fild dword [n_lado_b]
+	fild dword [n_lado_a]
+	fsubp
+	fdivp   
+	fstp dword [t_step]
+
+	mov r11d, [n_lado_a]
+
+	
+.pintar_linea_1:
+
+	mov ecx, r11d
+	mov edx, ebx	
+	mov r8, r15
+	call Pintar_Pixel
+
+	inc r11d
+	cmp r11d, [n_lado_b]
+	jbe .pintar_linea_1
+	
+	inc ebx
+	cmp ebx, [triangulo+TRIANGULO__vertice2+VERTICE__y]
+	jbe .loop1	
+	 
+	fld dword [parametro_t]
+	fld dword [t_step]
+	faddp
+	fstp dword [parametro_t]
+
+
+.fin_cond_1:
+
+
+
+
+;_______Ahora viene la otra parte, la que tiene la punta hacia abajo
+
+
+	xor rax, rax
+	
+	mov eax, [triangulo+TRIANGULO__vertice3+VERTICE__y]
+	sub eax, [triangulo+TRIANGULO__vertice2+VERTICE__y]
+	mov [delta_y1], eax
+
+	mov eax, [triangulo+TRIANGULO__vertice3+VERTICE__x]
+	sub eax, [triangulo+TRIANGULO__vertice2+VERTICE__x]
+	mov [delta_x1], eax
+
+		
+;_______Ahora calculo los deltas
+
+
+	cmp dword [delta_y1], 0
+	je .delta_y1_es_cero_2
+	fild dword [delta_x1]
+	fild dword [delta_y1]
+	fabs
+	fdivp
+	fstp dword [dax_step]
+
+.delta_y1_es_cero_2:	
+
+
+	cmp dword [delta_y2], 0
+	je .delta_y2_es_cero_2
+	fild dword [delta_x2]
+	fild dword [delta_y2]
+	fabs
+	fdivp
+	fstp dword [dbx_step]
+
+.delta_y2_es_cero_2:	
+
+	; Ahora vienen los loops de relleno
+
+	cmp dword [delta_y1], 0
+	je .fin_cond_2
+
+	mov ebx, [triangulo+TRIANGULO__vertice2+VERTICE__y]
+	mov eax, 0
+	mov [parametro_t], eax	
+	
+.loop2:
+	
+	mov [n_actual], ebx
+
+	fild dword [triangulo+TRIANGULO__vertice2+VERTICE__x]
+	fild dword [n_actual]
+	fild dword [triangulo+TRIANGULO__vertice2+VERTICE__y]
+	fsubp
+	fld dword [dax_step]
+	fmulp
+	faddp
+	fistp dword [n_lado_a]
+
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__x]
+	fild dword [n_actual]
+	fild dword [triangulo+TRIANGULO__vertice1+VERTICE__y]
+	fsubp
+	fld dword [dbx_step]
+	fmulp
+	faddp
+	fistp dword [n_lado_b]
+		
+	
+	; Si n_lado_a  es mayor que n_lado_b, los conmuto porque
+	; sino no voy a poder rasterizar de izquierda a derecha
+
+	mov r8d, [n_lado_a]
+	mov r9d, [n_lado_b]
+	cmp r8d, r9d
+	cmovg r10d, r9d          
+	cmovg r9d, r8d
+	cmovg r8d, r10d
+	mov [n_lado_a], r8d
+	mov [n_lado_b], r9d
+
+	; Si son iguales irse porque vas a tener una división por cero abajo. Quizás no esté mal que 
+	; de "infinito", pero por las dudas lo quito.
+
+;	cmp r8d, r9d
+;	je .fin_cond_2
+	
+	
+	; Hago el recíproco de la pendiente
+
+	fld1
+	fild dword [n_lado_b]
+	fild dword [n_lado_a]
+	fsubp
+	fdivp   
+	fstp dword [t_step]
+
+	mov r11d, [n_lado_a]
+	
+.pintar_linea_2:
+
+	mov ecx, r11d
+	mov edx, ebx	
+	mov r8, r15
+	call Pintar_Pixel
+
+	inc r11d
+	cmp r11d, [n_lado_b]
+	jbe .pintar_linea_2
+
+	
+	inc ebx
+	cmp ebx, [triangulo+TRIANGULO__vertice3+VERTICE__y]
+	jbe .loop2	
+	 
+	fld dword [parametro_t]
+	fld dword [t_step]
+	faddp
+	fstp dword [parametro_t]
+
+
+.fin_cond_2:
+
+
+
+.test:
+
+
+	pop r15
+	pop r11
+	pop rbx
+	xor rax,rax
+	mov rsp, rbp
+	pop rbp
+	ret
+
+
+
+
+
+
+;------------------------------------------------------------------------------
+
+
+Pintar_Pixel: 
+
+	push rbp
+	mov rbp, rsp
+	sub rsp, SHADOWSPACE + 32
+
+	push rcx
+	push rdx
+
+	call Pixel_a_Offset_de_Memoria
+	mov r8, [puntero_DIB]
+	add r8, rax
+	mov eax, [r15+TRIANGULO__color]
+	mov dword [r8], eax
+
+
+	pop rdx
+	pop rcx
+	
+	mov rsp, rbp
+	pop rbp
+	ret
+
+
+
+;------------------------------------------------------------------------------
+
+Pixel_a_Offset_de_Memoria:
+
+	; rcx = x
+	; rdx = y
+
+	; La formula es  4 [(x) + (y*(PADDING+ANCHO_PANTALLA))]
+	; tomo como padding 0, luego vamos corrigiendo.
+
+	mov rax, 0; PADDING
+	add rax, ANCHO_PANTALLA
+	mul edx
+	add eax, ecx
+	mov edx, 4
+	mul edx
+	ret
+
+;------------------------------------------------------------------------------
+
+
+Pintar_Triangulo_Vertices:
+
+
+	; rcx: el puntero del triangulo a rasterizar
+
+	push rbp
+	mov rbp, rsp
+	sub rsp, SHADOWSPACE
+
+
+	mov r8, rcx
+
+	xor rcx, rcx
+	xor rdx, rdx
+	
+
+	
+
+	mov ecx, [r8+TRIANGULO__vertice1+VERTICE__x]
+	mov edx, [r8+TRIANGULO__vertice1+VERTICE__y]
+	call Pixel_a_Offset_de_Memoria
+	mov r9, [puntero_DIB]
+	add r9, rax
+	mov dword [r9], 0x00FF0000
+ 
+
+	mov ecx, [r8+TRIANGULO__vertice2+VERTICE__x]
+	mov edx, [r8+TRIANGULO__vertice2+VERTICE__y]
+	call Pixel_a_Offset_de_Memoria
+	mov r9, [puntero_DIB]
+	add r9, rax
+	mov dword [r9], 0x00FF0000
+ 
+
+	mov ecx, [r8+TRIANGULO__vertice3+VERTICE__x]
+	mov edx, [r8+TRIANGULO__vertice3+VERTICE__y]
+	call Pixel_a_Offset_de_Memoria
+	mov r9, [puntero_DIB]
+	add r9, rax
+	mov dword [r9], 0x00FF0000
+ 
+
+	mov rsp, rbp
+	pop rbp
+
+	ret
+
 
 Pintar_Triangulo_Wireframe:
 

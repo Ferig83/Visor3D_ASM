@@ -67,6 +67,10 @@ factor_movimiento_x dd 0.1
 	; REGLA DE LA MANO DERECHA, OJO (se cumple la misma regla para la transformación de la figura??)
 
 
+ align 16
+ bitmapinfo TIMES BITMAPINFO_size db 0
+
+
 configuracion_proyeccion istruc PROYECCION
 	
 	at PROYECCION__alto_pantalla, dd ALTO_PANTALLA
@@ -95,6 +99,14 @@ section .bss nobits alloc noexec write align=16
 
  prueba resq 1  ; para meter los valores de los debug que haga
 
+ puntero_DIB		resq 1
+
+ alignb 16
+ backbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
+ alignb 16
+ zbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
+
+
  hInstance        	resq 1    
  BackgroundBrush  	resq 1
  DC_pantalla	        resq 1
@@ -107,6 +119,16 @@ section .bss nobits alloc noexec write align=16
  hdcMem			resq 1
  hbitmap_pantalla	resq 1
  hbmOld			resq 1
+
+
+;;;;;;;;;; ESTO ES PARA LA NUEVA COSA
+
+ hdc_ventana resq 1
+ hdc_bitmap resq 1
+ hdc_pantalla resq 1
+ hMemBmp resq 1
+ hOld resq 1
+
 
 
  ; Hasta que no encuentre otro método necesitaré que las siguientes tres sean globales
@@ -306,6 +328,22 @@ WinMain:
  	call  CreateSolidBrush 
  	mov   qword [REL BackgroundBrush], rax
 
+;_______Preparo el bitmapinfo para el DIB
+
+
+	mov eax, BITMAPINFOHEADER_size
+	mov [bitmapinfo+BITMAPINFO__header+BITMAPINFOHEADER__size], eax
+	mov eax, ANCHO_PANTALLA
+	mov [bitmapinfo+BITMAPINFO__header+BITMAPINFOHEADER__width], eax
+	mov eax, -ALTO_PANTALLA
+	mov [bitmapinfo+BITMAPINFO__header+BITMAPINFOHEADER__height], eax
+	mov ax, 1
+	mov [bitmapinfo+BITMAPINFO__header+BITMAPINFOHEADER__planes], ax
+	mov ax, 32  ; tamaño del RGBA
+	mov [bitmapinfo+BITMAPINFO__header+BITMAPINFOHEADER__bitCount], ax
+	
+	
+
 
 ;_______Procedemos a registrar y crear la ventana
 
@@ -480,10 +518,15 @@ WinMain:
 	call Actualizar_Todo
 
 
+;;;;;;;;;TEORICAMENTE ACA NO DEBERIAMOS PONER ESTO;;;
+; lo comento nomás por si termina yendo
+
 	mov rcx, [hWnd]
 	mov rdx, rectangulo_pantalla
 	mov r8d, FALSE
 	call InvalidateRect
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 	; No parece que sea necesario
 	;mov rcx, [hWnd]

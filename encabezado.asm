@@ -99,6 +99,7 @@ extern BitBlt
 extern CloseHandle
 extern CreateCompatibleDC
 extern CreateCompatibleBitmap
+extern CreateDIBSection
 extern CreateFileA
 extern CreateFileW
 extern CreateFontA
@@ -377,6 +378,44 @@ struc RASTERIZACION
 
 endstruc
 
+
+;----------------------------
+
+struc BITMAPINFOHEADER
+
+	BITMAPINFOHEADER__size	 		resd 1
+	BITMAPINFOHEADER__width 		resd 1
+	BITMAPINFOHEADER__height		resd 1
+	BITMAPINFOHEADER__planes		resw 1
+	BITMAPINFOHEADER__bitCount		resw 1
+	BITMAPINFOHEADER__compression		resd 1
+	BITMAPINFOHEADER__sizeImage		resd 1
+	BITMAPINFOHEADER__xPelsPerMeter		resd 1
+	BITMAPINFOHEADER__yPelsPerMeter		resd 1
+	BITMAPINFOHEADER__clrUsed		resd 1
+	BITMAPINFOHEADER__clrImportant		resd 1
+
+endstruc
+
+;----------------------------
+
+struc RGBQUAD
+	
+	RGBQUAD__blue		resb 1
+	RGBQUAD__green		resb 1
+	RGBQUAD__red		resb 1
+	RGBQUAD__reservado	resb 1
+
+endstruc
+
+;----------------------------
+
+struc BITMAPINFO
+
+	BITMAPINFO__header	resb BITMAPINFOHEADER_size
+	BITMAPINFO__colors	resb RGBQUAD_size*2	
+
+endstruc
 
 ;----------------------------
 

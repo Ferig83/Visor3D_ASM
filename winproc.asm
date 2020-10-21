@@ -224,7 +224,84 @@ WMCREATE:
 
 	xor rax, rax
 
-	;ATENCION: esto lo puse porque si no creo el heap primero y allocateo, corre el wmpaint antes de
+;;;COSA NUEVA;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	mov rcx, 0  
+	call GetDC
+	mov [hdc_pantalla],rax
+
+
+	mov rcx, [hdc_pantalla]   
+	mov rdx, bitmapinfo
+	mov r8, 0 ; DIB_RGB_COLORS
+	mov r9, puntero_DIB           ; ojo que es el puntero del puntero
+	mov qword [rsp + 4*8], 0
+	mov qword [rsp + 5*8], 0
+	call CreateDIBSection
+	mov [hBitmap], rax
+
+	mov rcx, 0       
+	mov rdx, [hdc_pantalla]
+	call ReleaseDC
+
+;	mov rax, puntero_DIB   ;porque como he dicho, es el puntero del puntero (qué bardo dios)
+	;mov rax, [rcx]
+	;mov [backbuffer], rax
+;	mov edx, 0x0000FF00  ; alfa-r-g-b
+;	xor rcx,rcx
+;
+;
+;.limpiar_pantalla:
+;	
+;	mov [rax], edx
+;	inc rcx
+;	add rax, 4 ; 32 bits
+;	cmp rcx, ALTO_PANTALLA*ANCHO_PANTALLA  ; probar más a ver que onda
+;	jb .limpiar_pantalla
+
+
+		; test ;
+
+; Pruebo mi poderosa funcion
+
+	mov rcx, 5
+	mov rdx, 0
+	call Pixel_a_Offset_de_Memoria
+	mov r8, [puntero_DIB]
+	add r8, rax
+	mov dword [r8], 0x00FF0000
+	;
+	mov rcx, 6
+	mov rdx, 1
+	call Pixel_a_Offset_de_Memoria
+	mov r8, [puntero_DIB]
+	add r8, rax
+	mov dword [r8], 0x00FF0000
+	;
+	mov rcx, 7
+	mov rdx, 2
+	call Pixel_a_Offset_de_Memoria
+	mov r8, [puntero_DIB]
+	add r8, rax
+	mov dword [r8], 0x00FF0000
+	;
+	mov rcx, 8
+	mov rdx, 3
+	call Pixel_a_Offset_de_Memoria
+	mov r8, [puntero_DIB]
+	add r8, rax
+	mov dword [r8], 0x00FF0000
+ 
+
+
+	; fin test ;
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	;ATENCION: este call siguiente lo puse porque si no creo el heap primero y allocateo, corre el wmpaint antes de
 	; Actualizar_Todo en el main y se cuelga. Por eso es importante crear el heap antes al menos.
 	; Lo que debería hacer es crearlo acá o en el main, sin necesidad de llamar a Actualizar_Todo
 
