@@ -54,7 +54,9 @@ Inicializar_Matriz_Proyeccion:
 		
 
 ;_______Cargo los relativos a Zfar y ZNear
-	
+
+; -- Código para que Z esté entre 0 y 1
+
 	fld dword [zfar]
 	fld dword [zfar]
 	fld dword [znear]
@@ -65,6 +67,35 @@ Inicializar_Matriz_Proyeccion:
 	fchs
 	fmulp
 	fstp dword [rcx+MATRIZ__43]
+
+
+
+
+; -- Código para que Z esté entre -1 y 1
+;	
+;	fld dword [zfar]
+;	fld dword [znear]
+;	faddp
+;	fld dword [zfar]
+;	fld dword [znear]
+;	fsubp
+;	fdivp
+;	fstp dword [rcx+MATRIZ__33]
+;
+;
+;	fld dword [zfar]
+;	fld dword [znear]
+;	fmulp
+;	fld dword [zfar]
+;	fld dword [znear]
+;	fsubp
+;	fdivp
+;	fchs
+;	fld1
+;	fld1
+;	faddp
+;	fmulp
+;	fstp dword [rcx+MATRIZ__43]
 
 ;_______Cargo un 1 	
 	
@@ -177,6 +208,91 @@ Inicializar_Matriz_Rotacion_X:
 		
 
 
+;----------------------------------------------------------------------------------------
+
+
+Inicializar_Matriz_Rotacion_Y:
+	
+	; En RCX va el puntero de la matriz a llenar
+	; En EDX va el angulo en float 
+
+
+	%define auxiliar rbp - 4 	; 4 bytes  (es para pasar de registro float a registro común)
+	%define angulo rbp - 4 		; 4 bytes
+	
+	push rbp
+	mov rbp, rsp	
+	sub rsp, SHADOWSPACE + 32
+	
+	push rbx
+	push r11
+
+
+	mov [angulo], edx	
+
+	fld dword [angulo]
+	fcos
+	fld dword [angulo]
+	fsin
+	fst dword [auxiliar]
+	mov eax, [auxiliar]
+	fchs
+	fstp dword [auxiliar]
+	mov r8d, [auxiliar]
+	fstp dword [auxiliar]
+	mov edx, [auxiliar]
+
+	mov ebx, 0x00000000
+	mov r11d, 0x3f800000
+
+	; Con esto ahora tengo que 
+	; En EDX va el coseno del angulo
+	; En EAX va el seno del angulo
+	; y en R8d va el -seno del angulo
+	; ebx es 0
+	; r11d es 1
+
+
+	;Relleno la matriz
+	
+	mov [rcx+(MATRIZ__11)], edx	; COS(tita) 
+	mov [rcx+(MATRIZ__21)], ebx	; 0
+	mov [rcx+(MATRIZ__31)], eax	; SEN(tita)
+	mov [rcx+(MATRIZ__41)], ebx	; 0
+
+	mov [rcx+(MATRIZ__12)], ebx	; 0
+	mov [rcx+(MATRIZ__22)], r11d	; 1 
+	mov [rcx+(MATRIZ__32)], ebx	; 0
+	mov [rcx+(MATRIZ__42)], ebx	; 0
+		
+	mov [rcx+(MATRIZ__13)], r8d	; -SEN(tita)
+	mov [rcx+(MATRIZ__23)], ebx	; 0 
+	mov [rcx+(MATRIZ__33)], edx	; COS(tita)
+	mov [rcx+(MATRIZ__43)], ebx	; 0
+		
+	mov [rcx+(MATRIZ__14)], ebx	; 0 
+	mov [rcx+(MATRIZ__24)], ebx	; 0
+	mov [rcx+(MATRIZ__34)], ebx	; 0
+	mov [rcx+(MATRIZ__44)], r11d	; 1
+
+
+	%undef auxiliar
+	%undef angulo
+
+	pop r11
+	pop rbx
+
+	mov rsp, rbp
+	pop rbp
+			
+	ret
+		
+
+
+
+
+
+;----------------------------------------------------------------------------------------
 
 Inicializar_Matriz_Rotacion_Z:
 	
@@ -377,7 +493,7 @@ Inicializar_Matriz_Identidad:
 ;--------------------------------------------------------------------
 
 
-Inicializar_Matriz_Camara:
+Inicializar_Matriz_Apuntar_Camara:
 
 	; En rcx el puntero de la matriz donde van volcados los datos
 	; En rdx el puntero de la cámara del vector que señala la parte de adelante
@@ -512,11 +628,11 @@ Inicializar_Matriz_Camara:
 ;--------------------------------------------------------------------
 
 
-Inicializar_Matriz_Vista:
+Inicializar_Matriz_Capturar_Camara:
 
 
-	; en rcx el puntero de la matriz vista
-	; en rdx el puntero de la matriz camara
+	; en rcx el puntero de la matriz apuntar camara
+	; en rdx el puntero de la matriz capturar camara
 	
 
 	mov eax, [rdx+MATRIZ__11]

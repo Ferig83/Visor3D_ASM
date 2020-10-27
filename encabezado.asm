@@ -183,7 +183,7 @@ struc WC
 	WC__hIcon		resb 8
 	WC__hCursor		resb 8
 	WC__hbrBackground	resb 8
-	WC__lpszMenuName		resb 8
+	WC__lpszMenuName	resb 8
 	WC__lpszClassName	resb 8
 	WC__hIconSm		resb 8
 
@@ -257,7 +257,9 @@ struc TRIANGULO
 	TRIANGULO__vertice2 	resb VERTICE_size
 	TRIANGULO__vertice3 	resb VERTICE_size
 	TRIANGULO__color 	resb COLOR_size
-	TRIANGULO__padding 	resb 12  	;esto es para que estén alineados a 16 bytes
+	TRIANGULO__normal_x	resb 4
+	TRIANGULO__normal_y	resb 4
+	TRIANGULO__normal_z	resb 4
 
 endstruc  ; esto pesaría 64 bytes, y siempre debe ocupar un múltiplo de 16
 

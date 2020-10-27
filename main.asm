@@ -21,7 +21,7 @@ MitadAltoPantalla  dd FSP_MITAD_ALTO_PANTALLA    ; 384 en float 32
 
 rectangulo_pantalla dd 0,0,ANCHO_PANTALLA,ALTO_PANTALLA
 
-BackgroundColour dd 0x00FFFFFF		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
+BackgroundColour dd 0x00000000		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
 click_izquierdo  dd 0
 
 
@@ -35,9 +35,9 @@ ExitText         db "¿Está seguro de que quiere salir?", 0   ; Texto del mensaje
 
 ;--- CADENAS DE RUTA DE ARCHIVOS --
 
-ruta_cubo	db "cubo.3d" ,0
-ruta_cilindro   db "cilindro.3d",0
-ruta_esfera	db "esfera.3d",0
+ruta_cubo	db "persona.3d" ,0
+ruta_cilindro   db "vaca.3d",0
+ruta_craneo	db "craneo.3d",0
 
 ; -- CADENAS DE ERRORES --
 
@@ -94,15 +94,15 @@ section .bss nobits alloc noexec write align=16
  temporizador 			resb TIMER_size
  cubo 				resb OBJETO_3D_size
  cilindro 			resb OBJETO_3D_size
- esfera 			resb OBJETO_3D_size
+ craneo 			resb OBJETO_3D_size
  array_rasterizacion		resb ARRAY_DINAMICO_size
 
  prueba resq 1  ; para meter los valores de los debug que haga
 
  puntero_DIB		resq 1
 
- alignb 16
- backbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
+; alignb 16
+; backbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
  alignb 16
  zbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
 
@@ -148,16 +148,15 @@ section .bss nobits alloc noexec write align=16
  	
  alignb 16
  	matriz_mundo 		resd 16
- 	matriz_camara		resd 16
- 	matriz_vista		resd 16
+ 	matriz_apuntar_camara	resd 16
+ 	matriz_capturar_camara	resd 16
  	matriz_proyeccion	resd 16
 	matriz_identidad	resd 16
 	matriz_pantalla		resd 16
  
  ;Auxiliares
 
- matriz_A   		resd 16   ; esta creo que no la estoy usando
- matriz_B     		resd 16
+ matriz_multiplicacion     	resd 16
  
  
   
@@ -214,6 +213,12 @@ WinMain:
 	lea rcx, [temporizador+TIMER__frecuencia]
 	call QueryPerformanceFrequency  ; esto lo necesito para setearlo
 
+
+;_______Limpio de paso el zbuffer
+
+	call Limpiar_Depth_Buffer
+
+
 ;_______Cargo los parámetros de nuestros objetos
 ;	No pasarlos a estructuras definidas globalmente porque tampoco es 
 ;	mi intención que los objetos sean globales. A futuro cambiaré eso
@@ -223,11 +228,15 @@ WinMain:
 
 	mov eax, 0
 	mov [cubo+OBJETO_3D__angulo_x], eax
-	mov eax, 0x40000000
+	mov eax, 0;0x40000000
 	mov [cubo+OBJETO_3D__velocidad_angular_x], eax
 	mov eax, 0
+	mov [cubo+OBJETO_3D__angulo_y], eax
+	mov eax, 0x40000000
+	mov [cubo+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
 	mov [cubo+OBJETO_3D__angulo_z], eax
-	mov eax, 0x40800000
+	mov eax, 0;0x40800000
 	mov [cubo+OBJETO_3D__velocidad_angular_z], eax
 
 	mov eax, 0xc0800000 ; -4
@@ -251,11 +260,15 @@ WinMain:
 
 	mov eax, 0
 	mov [cilindro+OBJETO_3D__angulo_x], eax
-	mov eax, 0x40800000
+	mov eax, 0;0x40800000
 	mov [cilindro+OBJETO_3D__velocidad_angular_x], eax
 	mov eax, 0
-	mov [cilindro+OBJETO_3D__angulo_z], eax
+	mov [cilindro+OBJETO_3D__angulo_y], eax
 	mov eax, 0x40000000
+	mov [cilindro+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [cilindro+OBJETO_3D__angulo_z], eax
+	mov eax, 0;0x40000000
 	mov [cilindro+OBJETO_3D__velocidad_angular_z], eax
 	
 	mov eax, 0x40800000  ; 4 
@@ -273,30 +286,34 @@ WinMain:
 	call Cargar_Datos_3D
 
 
-	; Objeto "ESFERA"
+	; Objeto "CRANEO"
 
 	mov eax, 0
-	mov [esfera+OBJETO_3D__angulo_x], eax
-	mov eax, 0x40000000
-	mov [esfera+OBJETO_3D__velocidad_angular_x], eax
+	mov [craneo+OBJETO_3D__angulo_x], eax
 	mov eax, 0
-	mov [esfera+OBJETO_3D__angulo_z], eax
-	mov eax, 0x40800000
-	mov [esfera+OBJETO_3D__velocidad_angular_z], eax
+	mov [craneo+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [craneo+OBJETO_3D__angulo_y], eax
+	mov eax, 0x40000000
+	mov [craneo+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [craneo+OBJETO_3D__angulo_z], eax
+	mov eax, 0;0x40800000
+	mov [craneo+OBJETO_3D__velocidad_angular_z], eax
 
 	mov eax, 0x00000000 
-	mov [esfera+OBJETO_3D__posicion_x], eax	
+	mov [craneo+OBJETO_3D__posicion_x], eax	
 	mov eax, 0x00000000
-	mov [esfera+OBJETO_3D__posicion_y], eax	
+	mov [craneo+OBJETO_3D__posicion_y], eax	
 	mov eax, 0x41200000 ; 10
-	mov [esfera+OBJETO_3D__posicion_z], eax	
+	mov [craneo+OBJETO_3D__posicion_z], eax	
 
 
-	mov eax, 0x000000FF ; rojo  (ERROR SI PONGO 000000FF...sale negro!)
-	mov [esfera+OBJETO_3D__color_por_defecto], eax
+	mov eax, 0x00FFFF00
+	mov [craneo+OBJETO_3D__color_por_defecto], eax
 
-	mov rcx, ruta_esfera
-	mov rdx, esfera
+	mov rcx, ruta_craneo
+	mov rdx, craneo
 	call Cargar_Datos_3D
 
 	

@@ -16,8 +16,8 @@ endstruc
 
 
 
-%define TAMANIO_ARRAY_PREDETERMINADO TRIANGULO_size*10000   ; espacio inicial para 10000 triangulos
-%define TAMANIO_EXTRA_AGREGADO TRIANGULO_size*1000	    ; espacio agregado para 1000 triangulos más 
+%define TAMANIO_ARRAY_PREDETERMINADO TRIANGULO_size*100000   ; espacio inicial para 100000 triangulos
+%define TAMANIO_EXTRA_AGREGADO TRIANGULO_size*100000	    ; espacio agregado para 100000 triangulos más 
 
 
 ; Funciones:
