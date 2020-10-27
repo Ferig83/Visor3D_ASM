@@ -4,20 +4,17 @@ En desarrollo. Solo utilizo GDI / WinAPI (lo más bajo nivel que puedo llegar co
 
 ## Estado del proyecto: 
 
-Desde la última actualización se pulió un poco más el código. Ya no cargo los objetos 3D desde la línea de comandos (duele remover código), sino que en cambio puedo
-crear más de un objeto y colocarlos a gusto! Para esto implementé una suerte de array dinámico el cual me va a servir mucho para el clipping (el cual todavía no está implementado). 
+Implementado el Depth Buffer ! Ya se pueden ver correctamente las figuras que no son convexas. Aun queda arreglar el clipping (si las figuras salen de la pantalla el programa se va a colgar), pero estoy muy contento con el progreso.
 
 
-![alt text](https://github.com/Ferig83/Visor3D_ASM/blob/master/lala.png)
+![alt text](https://github.com/Ferig83/Visor3D_ASM/blob/master/sinister.png)
 
 
 (las figuras están animadas en el ejecutable. Con rotación. Así bien chulas)
 
 El movimiento de cámara está hecho pero de una forma media vaga (tengo que averiguar cómo hacer para que me lea el teclado sin el delay). Los controles son W,S,A,D (adelante, atrás, izquierda y derecha respectivamente).
 
-Como ya no se usa la linea de comandos, elimino las instrucciones de uso. Recordar igual que se puede armar un objeto en blender, exportarlo a .OBJ y usar el conversor que está en la carpeta "conversor" para pasarlo a mi formato ".3d" (tipo "conversor casita.obj"). Una vez convertido se debe cargar en el main y en la lista de actualizaciones en "Actualizar_Todo".
-
-Importante! las figuras deben ser __convexas__ ! todavía no está implementado lo de pintar los triángulos en orden de profundidad, por lo que si la figura no es convexa puede aparecer un triángulo pintado por delante cuando debería estar por detrás. __Todas las figuras tienen que estar con triángulos, sin rectángulos.__
+Como ya no se usa la linea de comandos, elimino las instrucciones de uso. Recordar igual que se puede armar un objeto en blender, exportarlo a .OBJ y usar el conversor que está en la carpeta "conversor" para pasarlo a mi formato ".3d" (tipo "conversor casita.obj"). Una vez convertido se debe cargar en el main y en la lista de actualizaciones en "Actualizar_Todo". __Todas las figuras tienen que estar con triángulos, sin rectángulos.__
 
 
 
