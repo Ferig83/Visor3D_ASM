@@ -163,3 +163,19 @@ Pushback_Array_Dinamico:
 
 %undef TAMANIO_ARRAY_PREDETERMINADO	
 %undef TAMANIO_EXTRA_AGREGADO	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

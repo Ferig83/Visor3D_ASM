@@ -72,6 +72,9 @@ Pintar_WMPAINT:
 
 .loop1:
 
+	cmp dword r13d, [array_rasterizacion+ARRAY_DINAMICO__cantidad_elementos]
+	jae .fin_loop1 
+
 	xor rdx,rdx
 	xor rcx,rcx
 	mov rax, TRIANGULO_size
@@ -82,9 +85,11 @@ Pintar_WMPAINT:
 	call Rasterizar_Triangulo 
 
 	inc r13
-	cmp dword r13d, [array_rasterizacion+ARRAY_DINAMICO__cantidad_elementos]
-	jb .loop1
+	jmp .loop1
 
+
+
+.fin_loop1:
 
 ;_______Bliteo
 
@@ -390,13 +395,6 @@ Rasterizar_Triangulo:
 	mov eax, [incremento_a] 
 	cmp eax, dword [incremento_b]
 	je .fin_cond_1  
-	
-	; Verifico que la componente Z de la normal no sea cero, si lo es, no hay nada que dibujar
-
-	mov eax, [r15+TRIANGULO__normal_z]
-	cmp eax, 0
-	je .fin_cond_1
-
 	
 
 ;_______Ahora vienen los loops de relleno, en el cual itero usando las interpolaciones para sacar los 

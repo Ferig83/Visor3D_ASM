@@ -11,11 +11,14 @@
 %define LR_CREATEDIBSECTION 0x00001000
 %define SRCCOPY 0xCC0020
 
-%define ANCHO_MASCARA 1366    ; Coincide con el ancho de pantalla pero no necesariamente debe ser así
 %define OFFSET_TGA 18         ; No sirve para nada ahora pero por las dudas lo mantengo
 
 %define SHADOWSPACE 32
 %define PARAMETROS 8
+
+ULTIMO_PLANO_PREPROYECCION equ 2
+ULTIMO_PLANO_POSTPROYECCION equ 7
+
 
 
 ;Lo siguiente son las constantes usadas en las funciones del winapi
@@ -88,6 +91,11 @@ VK_A equ 0x41
 VK_D equ 0x44
 VK_S equ 0x53
 VK_W equ 0x57
+VK_R equ 0x52
+VK_F equ 0x46
+VK_Q equ 0x51
+VK_E equ 0x45
+
 
 
 
@@ -360,6 +368,7 @@ struc OBJETO_3D
 	OBJETO_3D__velocidad_angular_x		resd 1   ; fijarse porque puede que haya puesto 64 bits.
 	OBJETO_3D__velocidad_angular_y		resd 1
 	OBJETO_3D__velocidad_angular_z		resd 1
+	OBJETO_3D__escala_general		resd 1
 
 	; podemos meter acá los colisionadores, pero ver bien eso porque dependerán de cada objeto y creo que podríamos
 	; utilizar cubos o esferas hechas con el blender mismo. Verlo bien, pero más adelante
@@ -420,4 +429,39 @@ struc BITMAPINFO
 endstruc
 
 ;----------------------------
+
+struc DATOS_PLANO
+
+	DATOS_PLANO__normal 	resb VECTOR4_size
+	DATOS_PLANO__punto 	resb VECTOR4_size 
+
+endstruc
+
+;----------------------------
+
+struc PLANOS_PREPROYECCION
+
+	PLANOS_PREPROYECCION__puntero_near resq 1 
+	PLANOS_PREPROYECCION__puntero_far resq 1
+	PLANOS_PREPROYECCION__puntero_fin resq 1
+
+endstruc
+
+;----------------------------
+
+struc PLANOS_POSTPROYECCION
+
+	PLANOS_POSTPROYECCION__puntero_derecho resq 1 
+	PLANOS_POSTPROYECCION__puntero_izquierdo resq 1
+	PLANOS_POSTPROYECCION__puntero_arriba resq 1
+	PLANOS_POSTPROYECCION__puntero_abajo resq 1
+	PLANOS_POSTPROYECCION__puntero_fin resq 1
+
+endstruc
+
+
+
+
+
+
 

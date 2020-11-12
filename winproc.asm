@@ -150,7 +150,7 @@ WMKEYDOWN:
 	fstp dword [vector_camara_posicion+VECTOR4__3]
 	fstp st0
 
-	; A (derecha)
+	; A (izquierda)
 
 	fld dword [vector_camara_posicion+VECTOR4__1]
 	fld dword [factor_movimiento_x]
@@ -161,7 +161,7 @@ WMKEYDOWN:
 	fstp dword [vector_camara_posicion+VECTOR4__1]
 	fstp st0
 
-	; D (izquierda)
+	; D (derecha)
 
 	fld dword [vector_camara_posicion+VECTOR4__1]
 	fld dword [factor_movimiento_x]
@@ -170,6 +170,54 @@ WMKEYDOWN:
 	cmp cx, VK_D
 	fcmove st0, st1
 	fstp dword [vector_camara_posicion+VECTOR4__1]
+	fstp st0
+
+
+
+	; R (Arriba)
+
+	fld dword [vector_camara_posicion+VECTOR4__2]
+	fld dword [factor_movimiento_y]
+	faddp	
+	fld dword [vector_camara_posicion+VECTOR4__2]
+	cmp cx, VK_R
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4__2]
+	fstp st0
+
+
+	; F (abajo)
+
+	fld dword [vector_camara_posicion+VECTOR4__2]
+	fld dword [factor_movimiento_y]
+	fsubp	
+	fld dword [vector_camara_posicion+VECTOR4__2]
+	cmp cx, VK_F
+	fcmove st0, st1
+	fstp dword [vector_camara_posicion+VECTOR4__2]
+	fstp st0
+
+
+	; Q (giro izquierda)
+
+	fld dword [giro_camara]
+	fld dword [factor_giro_camara]
+	faddp	
+	fld dword [giro_camara]
+	cmp cx, VK_Q
+	fcmove st0, st1
+	fstp dword [giro_camara]
+	fstp st0
+
+	; E (giro derecha)
+
+	fld dword [giro_camara]
+	fld dword [factor_giro_camara]
+	fsubp	
+	fld dword [giro_camara]
+	cmp cx, VK_E
+	fcmove st0, st1
+	fstp dword [giro_camara]
 	fstp st0
 
 

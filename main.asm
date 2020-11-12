@@ -11,6 +11,7 @@ global Start
 %include 'pintar.asm'
 %include 'matrices.asm'
 %include 'arraydinamico.asm'
+%include 'queuecircular.asm'
 
 ;--- DATA -----------------------------------------------------------
 
@@ -21,7 +22,7 @@ MitadAltoPantalla  dd FSP_MITAD_ALTO_PANTALLA    ; 384 en float 32
 
 rectangulo_pantalla dd 0,0,ANCHO_PANTALLA,ALTO_PANTALLA
 
-BackgroundColour dd 0x00000000		               ; Color de fondo, le puse blanco y va en little endian (0xBBGGRR)
+BackgroundColour dd 0x00100000  ; Color de fondo, va en little endian (0xBBGGRR)
 click_izquierdo  dd 0
 
 
@@ -37,7 +38,16 @@ ExitText         db "¿Está seguro de que quiere salir?", 0   ; Texto del mensaje
 
 ruta_cubo	db "persona.3d" ,0
 ruta_cilindro   db "vaca.3d",0
-ruta_craneo	db "craneo.3d",0
+ruta_casa	db "casa.3d",0
+
+ruta_almohadas db "almohadas.3d",0
+ruta_colchon db "colchon.3d",0
+ruta_marcos db "marcos.3d",0
+ruta_mesa db "mesa.3d",0
+ruta_muebles db "muebles.3d",0
+ruta_paredes db "paredes.3d",0
+ruta_piso db "piso.3d",0
+ruta_techo db "techo.3d",0
 
 ; -- CADENAS DE ERRORES --
 
@@ -52,17 +62,21 @@ titulo_error db 'Error',0
 
 factor_conversion_tiempo dd 1.0		; La verdad si el factor es 1, la multiplicación es media al dope. Pero dejarlo por si
 					; tengo que cambiarlo.
-factor_movimiento_z dd 0.1
-factor_movimiento_x dd 0.1
 
+factor_movimiento_z dd 100.0 
+factor_movimiento_x dd 100.0
+factor_movimiento_y dd 100.0
+factor_giro_camara dd 0.1
+giro_camara dd 0.0
 
 ; -- CAMARA Y LUCES (respetar el alineamiento!)
+
 
  align 16  
  	vector_camara_arriba 		dd 0x00000000,0x3f800000,0x00000000,0x3f800000   ;   xyzw: 0,1,0,1
  	vector_camara_delante		dd 0x00000000,0x00000000,0x3f800000,0x3f800000 	 ;   xyzw: 0,0,1,1
- 	vector_camara_posicion		dd 0x00000000,0x00000000,0x00000000,0x3f800000   ;   xyzw: 0,0,0,1
- 	vector_luz			dd 0x00000000,0x00000000,0xbf800000,0x3f800000	 ;   xyzw: 0,0,-1,1
+ 	vector_camara_posicion		dd 0x00000000,ALTURA_PERSONAJE,0x00000000,0x3f800000   ;   xyzw: 0,1750,0,1   (1 = 1mm)
+ 	vector_luz			dd 0x00000000,0x3f800000,0xbf800000,0x3f800000	 ;   xyzw: 0,1,-1,1
 	
 	; REGLA DE LA MANO DERECHA, OJO (se cumple la misma regla para la transformación de la figura??)
 
@@ -80,32 +94,143 @@ configuracion_proyeccion istruc PROYECCION
 	at PROYECCION__z_near, dd ZNEAR
 
 iend
- 	
+
+
+;--- CLIPPING --------------------------------------
+
+align 16 ; REQUERIDO
+plano_near istruc DATOS_PLANO
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0x00000000 ; 0 
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0x3f800000 ; 1
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__3, dd ZNEAR	
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+
+iend
+
+align 16 ; REQUERIDO
+plano_far istruc DATOS_PLANO
+
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0x00000000 ; 0 
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0xbf800000 ; -1
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__3, dd ZFAR
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+
+iend
+
+
+align 16 ; REQUERIDO
+plano_derecho istruc DATOS_PLANO
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0xbf800000 ; -1
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0x3f7d70a4 ; 0.99
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0x00000000	; 0
+	at DATOS_PLANO__punto+VECTOR4__3, dd 0x00000000	; 0
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+iend
+
+align 16 ; REQUERIDO
+plano_izquierdo istruc DATOS_PLANO
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0x3f800000 ; 1
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0xbf7d70a4 ;  -0.99
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0x00000000	; 
+	at DATOS_PLANO__punto+VECTOR4__3, dd 0x00000000	;
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+
+iend
+
+
+align 16 ; REQUERIDO
+plano_superior istruc DATOS_PLANO
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0x3f800000 ; 1 
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0xbf7d70a4 ;  -0.99	
+	at DATOS_PLANO__punto+VECTOR4__3, dd 0x00000000	; 0
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+
+iend
+
+align 16 ; REQUERIDO
+plano_inferior istruc DATOS_PLANO
+
+
+	at DATOS_PLANO__normal+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__2, dd 0xbf800000 ; -1 
+	at DATOS_PLANO__normal+VECTOR4__3, dd 0x00000000 ; 0
+	at DATOS_PLANO__normal+VECTOR4__4, dd 0x00000000 ; 0
+
+	at DATOS_PLANO__punto+VECTOR4__1, dd 0x00000000 ; 0
+	at DATOS_PLANO__punto+VECTOR4__2, dd 0x3f7d70a4 ; 0.99
+	at DATOS_PLANO__punto+VECTOR4__3, dd 0x00000000	; 0
+	at DATOS_PLANO__punto+VECTOR4__4, dd 0x3f800000	; 1 
+
+
+
+iend
+
+
 
 ;--- BSS --------------------------------------------------------
 
 section .bss nobits alloc noexec write align=16
 
-; Estas son para la macro Imprimir_RAX. No la estoy usando la verdad
-; cadena_auxiliar resb 20
-; cadena_impresion resb 20
-
 
  temporizador 			resb TIMER_size
  cubo 				resb OBJETO_3D_size
  cilindro 			resb OBJETO_3D_size
- craneo 			resb OBJETO_3D_size
+ casa	 			resb OBJETO_3D_size
  array_rasterizacion		resb ARRAY_DINAMICO_size
+
+ almohadas 			resb OBJETO_3D_size
+ colchon			resb OBJETO_3D_size
+ marcos				resb OBJETO_3D_size
+ mesa				resb OBJETO_3D_size
+ muebles			resb OBJETO_3D_size
+ paredes			resb OBJETO_3D_size
+ piso				resb OBJETO_3D_size
+ techo				resb OBJETO_3D_size
+
+
 
  prueba resq 1  ; para meter los valores de los debug que haga
 
  puntero_DIB		resq 1
 
-; alignb 16
-; backbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
  alignb 16
  zbuffer 		resd ANCHO_PANTALLA*ALTO_PANTALLA
 
+
+;;;;Revisar de todos estos cual va y cual no
 
  hInstance        	resq 1    
  BackgroundBrush  	resq 1
@@ -120,14 +245,13 @@ section .bss nobits alloc noexec write align=16
  hbitmap_pantalla	resq 1
  hbmOld			resq 1
 
-
-;;;;;;;;;; ESTO ES PARA LA NUEVA COSA
-
+;;;;; ver si van los de arriba o los de abajo
  hdc_ventana resq 1
  hdc_bitmap resq 1
  hdc_pantalla resq 1
  hMemBmp resq 1
  hOld resq 1
+;;;;;;;;;; fin revisar de todos estos...
 
 
 
@@ -157,7 +281,6 @@ section .bss nobits alloc noexec write align=16
  ;Auxiliares
 
  matriz_multiplicacion     	resd 16
- 
  
   
 ;--- TEXT -----------------------------------------------------------
@@ -202,9 +325,7 @@ WinMain:
 
 %define wc			rbp - 136	; 80 bytes
 %define msg			rbp - 56	; 48 bytes
-%define hWnd        	        rbp - 8              ; 8 bytes
-
-
+%define hWnd        	        rbp - 8         ; 8 bytes
 
 
 
@@ -223,98 +344,8 @@ WinMain:
 ;	No pasarlos a estructuras definidas globalmente porque tampoco es 
 ;	mi intención que los objetos sean globales. A futuro cambiaré eso
 
+	call Inicializar_Todos_los_Objetos
 
-	; Objeto "CUBO"
-
-	mov eax, 0
-	mov [cubo+OBJETO_3D__angulo_x], eax
-	mov eax, 0;0x40000000
-	mov [cubo+OBJETO_3D__velocidad_angular_x], eax
-	mov eax, 0
-	mov [cubo+OBJETO_3D__angulo_y], eax
-	mov eax, 0x40000000
-	mov [cubo+OBJETO_3D__velocidad_angular_y], eax
-	mov eax, 0
-	mov [cubo+OBJETO_3D__angulo_z], eax
-	mov eax, 0;0x40800000
-	mov [cubo+OBJETO_3D__velocidad_angular_z], eax
-
-	mov eax, 0xc0800000 ; -4
-	mov [cubo+OBJETO_3D__posicion_x], eax	
-	mov eax, 0x00000000
-	mov [cubo+OBJETO_3D__posicion_y], eax	
-	mov eax, 0x41200000 ; 10
-	mov [cubo+OBJETO_3D__posicion_z], eax	
-
-
-	mov eax, 0x00FF0000 ; azul
-	mov [cubo+OBJETO_3D__color_por_defecto], eax
-
-
-	mov rcx, ruta_cubo
-	mov rdx, cubo
-	call Cargar_Datos_3D
-
-
-	; Objeto "CILINDRO"
-
-	mov eax, 0
-	mov [cilindro+OBJETO_3D__angulo_x], eax
-	mov eax, 0;0x40800000
-	mov [cilindro+OBJETO_3D__velocidad_angular_x], eax
-	mov eax, 0
-	mov [cilindro+OBJETO_3D__angulo_y], eax
-	mov eax, 0x40000000
-	mov [cilindro+OBJETO_3D__velocidad_angular_y], eax
-	mov eax, 0
-	mov [cilindro+OBJETO_3D__angulo_z], eax
-	mov eax, 0;0x40000000
-	mov [cilindro+OBJETO_3D__velocidad_angular_z], eax
-	
-	mov eax, 0x40800000  ; 4 
-	mov [cilindro+OBJETO_3D__posicion_x], eax	
-	mov eax, 0x00000000
-	mov [cilindro+OBJETO_3D__posicion_y], eax	
-	mov eax, 0x41200000 ; 10
-	mov [cilindro+OBJETO_3D__posicion_z], eax
-	
-	mov eax, 0x0000FF00 ; verde
-	mov [cilindro+OBJETO_3D__color_por_defecto], eax	
-
-	mov rcx, ruta_cilindro
-	mov rdx, cilindro
-	call Cargar_Datos_3D
-
-
-	; Objeto "CRANEO"
-
-	mov eax, 0
-	mov [craneo+OBJETO_3D__angulo_x], eax
-	mov eax, 0
-	mov [craneo+OBJETO_3D__velocidad_angular_x], eax
-	mov eax, 0
-	mov [craneo+OBJETO_3D__angulo_y], eax
-	mov eax, 0x40000000
-	mov [craneo+OBJETO_3D__velocidad_angular_y], eax
-	mov eax, 0
-	mov [craneo+OBJETO_3D__angulo_z], eax
-	mov eax, 0;0x40800000
-	mov [craneo+OBJETO_3D__velocidad_angular_z], eax
-
-	mov eax, 0x00000000 
-	mov [craneo+OBJETO_3D__posicion_x], eax	
-	mov eax, 0x00000000
-	mov [craneo+OBJETO_3D__posicion_y], eax	
-	mov eax, 0x41200000 ; 10
-	mov [craneo+OBJETO_3D__posicion_z], eax	
-
-
-	mov eax, 0x00FFFF00
-	mov [craneo+OBJETO_3D__color_por_defecto], eax
-
-	mov rcx, ruta_craneo
-	mov rdx, craneo
-	call Cargar_Datos_3D
 
 	
 
@@ -526,29 +557,12 @@ WinMain:
 	call QueryPerformanceCounter
 
 
-	; Se lo quité y parece que no es necesario, igual me lo quedo (?
-	;mov rcx, [hWnd]
-	;mov rdx, rectangulo_pantalla
-	;call ValidateRect 
-
-
 	call Actualizar_Todo
-
-
-;;;;;;;;;TEORICAMENTE ACA NO DEBERIAMOS PONER ESTO;;;
-; lo comento nomás por si termina yendo
 
 	mov rcx, [hWnd]
 	mov rdx, rectangulo_pantalla
 	mov r8d, FALSE
 	call InvalidateRect
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-	; No parece que sea necesario
-	;mov rcx, [hWnd]
-	;mov rdx, 0x0010
-	;call UpdateWindow
 
 
 
@@ -565,3 +579,314 @@ WinMain:
  	pop   rbp
  	ret
 
+
+;------------------------------------------------------------------------------
+
+
+Inicializar_Todos_los_Objetos:
+
+
+
+	push rbp
+	mov rbp, rsp
+	sub rsp, SHADOWSPACE
+
+
+	; Objeto "Almohadas"
+
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [almohadas+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [almohadas+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [almohadas+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [almohadas+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [almohadas+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00d9dee5
+	mov [almohadas+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_almohadas
+	mov rdx, almohadas
+	call Cargar_Datos_3D
+
+	;-------------------------------
+
+	; Objeto "Colchon"
+
+	mov eax, 0
+	mov [colchon+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [colchon+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [colchon+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [colchon+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [colchon+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [colchon+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [colchon+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [colchon+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [colchon+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [colchon+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00fda96b
+	mov [colchon+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_colchon
+	mov rdx, colchon
+	call Cargar_Datos_3D
+
+	;---------------------------
+
+	; Objeto "Marcos"
+
+	mov eax, 0
+	mov [marcos+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [marcos+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [marcos+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [marcos+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [marcos+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [marcos+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [marcos+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [marcos+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [marcos+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [marcos+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x004771b1
+	mov [marcos+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_marcos
+	mov rdx, marcos
+	call Cargar_Datos_3D
+
+	;---------------------------
+
+	; Objeto "Mesa"
+
+	mov eax, 0
+	mov [mesa+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [mesa+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [mesa+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [mesa+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [mesa+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [mesa+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [mesa+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [mesa+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [mesa+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [mesa+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x007a491c
+	mov [mesa+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_mesa
+	mov rdx, mesa
+	call Cargar_Datos_3D
+
+	;----------------
+
+	; Objeto "Muebles"
+
+	mov eax, 0
+	mov [muebles+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [muebles+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [muebles+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [muebles+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [muebles+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [muebles+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [muebles+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [muebles+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [muebles+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [muebles+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00541912
+	mov [muebles+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_muebles
+	mov rdx, muebles
+	call Cargar_Datos_3D
+
+	;-------------------------
+
+
+	; Objeto "Paredes"
+
+	mov eax, 0
+	mov [paredes+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [paredes+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [paredes+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [paredes+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [paredes+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [paredes+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [paredes+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [paredes+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [paredes+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [paredes+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00FFFFFF 
+	mov [paredes+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_paredes
+	mov rdx, paredes
+	call Cargar_Datos_3D
+
+	;-----------------------------------
+
+
+	; Objeto "Piso"
+
+	mov eax, 0
+	mov [piso+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [piso+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [piso+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [piso+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [piso+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [piso+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [piso+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [piso+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [piso+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [piso+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00c5524f
+	mov [piso+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_piso
+	mov rdx, piso
+	call Cargar_Datos_3D
+
+
+	;-------------------------------
+
+
+	; Objeto "Techo"
+
+	mov eax, 0
+	mov [techo+OBJETO_3D__angulo_x], eax
+	mov eax, 0
+	mov [techo+OBJETO_3D__velocidad_angular_x], eax
+	mov eax, 0
+	mov [techo+OBJETO_3D__angulo_y], eax
+	mov eax, 0
+	mov [techo+OBJETO_3D__velocidad_angular_y], eax
+	mov eax, 0
+	mov [techo+OBJETO_3D__angulo_z], eax
+	mov eax, 0
+	mov [techo+OBJETO_3D__velocidad_angular_z], eax
+
+	mov eax, 0x00000000 
+	mov [techo+OBJETO_3D__posicion_x], eax	
+	mov eax, 0x00000000
+	mov [techo+OBJETO_3D__posicion_y], eax	
+	mov eax, 0x46c35000 ; 25000 (25 metros)
+	mov [techo+OBJETO_3D__posicion_z], eax
+
+
+	mov eax, 0x460ca000 ; puse 9000, pero deben ser 3000 ( 1 = 1mm), pasa que la altura no esta normalizada 
+	mov [techo+OBJETO_3D__escala_general], eax	
+
+
+	mov eax, 0x00eaeaea
+	mov [techo+OBJETO_3D__color_por_defecto], eax
+
+	mov rcx, ruta_techo
+	mov rdx, techo
+	call Cargar_Datos_3D
+
+
+	;-------------------
+
+
+
+	mov rsp, rbp
+	pop rbp
+	ret	
